@@ -1,0 +1,11 @@
+[project]
+name = "chatgpt-proxy"
+version = "0.1.0"
+description = "ChatGPT proxy server for UnrealScript / UE3 bots."
+readme = "README.md"
+requires-python = ">=3.13"
+license-files = ["LICENSE"]
+dependencies = [
+    "loguru>=0.7.3",
+    "sanic>=25.3.0",
+]
