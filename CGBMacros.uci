@@ -1,0 +1,25 @@
+`define CGB_DEBUG 1
+
+`define cgblog(msg, cond, tag) \
+    `log(self.class.name $ "::" $ GetFuncName() $ "(): " $ `msg, \
+    `cond, \
+    `if(`tag) name("AnalyticsMutator-" $ string(`tag)) `else 'AnalyticsMutator' `endif)
+
+`define aslog(msg, cond, tag) \
+    `log(default.class.name $ "::" $ GetFuncName() $ "(): " $ `msg, \
+    `cond, \
+    `if(`tag) name("AnalyticsMutator-" $ string(`tag)) `else 'AnalyticsMutator' `endif)
+
+`define awarn(msg, cond) `cgblog(`msg, `cond, 'WARNING')
+`define aerror(msg, cond) `cgblog(`msg, `cond, 'ERROR')
+
+`define aswarn(msg, cond) `aslog(`msg, `cond, 'WARNING')
+`define aserror(msg, cond) `aslog(`msg, `cond, 'ERROR')
+
+`if(`isdefined(CGB_DEBUG))
+    `define adebug(msg, cond) `cgblog(`msg, `cond, 'DEBUG')
+    `define asdebug(msg, cond) `aslog(`msg, `cond, 'DEBUG')
+`else
+    `define adebug(msg, cond, tag)
+    `define asdebug(msg, cond, tag)
+`endif

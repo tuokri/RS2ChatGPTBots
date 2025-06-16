@@ -1,0 +1,2 @@
+*.uci linguist-language=UnrealScript
+*.int linguist-language=INI
