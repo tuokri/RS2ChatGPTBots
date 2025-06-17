@@ -21,3 +21,31 @@
  */
 
 class ChatGPTBotsMutator extends ROMutator;
+
+// TODO: add way to hook into in game chat messages.
+//   * Some sort of logic on when to actually send messages to the proxy server.
+//   * Which bots do we use to broadcast in game messages? Should we use actual
+//     bots or just some sort of proxy actor?
+//   * Prefixed chat commands? For example with "!bot bla bla blu blu".
+
+event PreBeginPlay()
+{
+    super.PreBeginPlay();
+
+    `cgblog("mutator initialized");
+}
+
+function NotifyLogout(Controller Exiting)
+{
+    super.NotifyLogout(Exiting);
+}
+
+function NotifyLogin(Controller NewPlayer)
+{
+    super.NotifyLogin(NewPlayer);
+}
+
+function ScoreKill(Controller Killer, Controller Victim)
+{
+    super.ScoreKill(Killer, Victim);
+}
