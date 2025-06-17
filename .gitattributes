@@ -1,2 +1,3 @@
 *.uci linguist-language=UnrealScript
 *.int linguist-language=INI
+*.sql linguist-language=PLpgSQL
