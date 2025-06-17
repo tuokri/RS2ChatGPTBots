@@ -70,7 +70,11 @@ class MessageContext:
 
 
 @api_v1.post("/game/<game_id>/message")
-async def post_game_message(request: Request, game_id: str, client: openai.AsyncOpenAI) -> HTTPResponse:
+async def post_game_message(
+        request: Request,
+        game_id: str,
+        client: openai.AsyncOpenAI,
+) -> HTTPResponse:
     return sanic.text("TODO")
 
 
