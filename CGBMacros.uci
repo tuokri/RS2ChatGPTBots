@@ -3,12 +3,12 @@
 `define cgblog(msg, cond, tag) \
     `log(self.class.name $ "::" $ GetFuncName() $ "(): " $ `msg, \
     `cond, \
-    `if(`tag) name("AnalyticsMutator-" $ string(`tag)) `else 'AnalyticsMutator' `endif)
+    `if(`tag) name("CGBMutator-" $ string(`tag)) `else 'CGBMutator' `endif)
 
 `define aslog(msg, cond, tag) \
     `log(default.class.name $ "::" $ GetFuncName() $ "(): " $ `msg, \
     `cond, \
-    `if(`tag) name("AnalyticsMutator-" $ string(`tag)) `else 'AnalyticsMutator' `endif)
+    `if(`tag) name("CGBMutator-" $ string(`tag)) `else 'CGBMutator' `endif)
 
 `define awarn(msg, cond) `cgblog(`msg, `cond, 'WARNING')
 `define aerror(msg, cond) `cgblog(`msg, `cond, 'ERROR')

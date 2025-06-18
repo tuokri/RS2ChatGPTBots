@@ -61,7 +61,11 @@ function ClearReceiver(delegate<ReceiveMessage> ReceiveMessageDelegate)
     }
 }
 
-function HandleMessage(PlayerReplicationInfo PRI, coerce string S, name Type, optional float MsgLifeTime)
+function HandleMessage(
+    PlayerReplicationInfo PRI,
+    coerce string S,
+    name Type,
+    optional float MsgLifeTime)
 {
     local delegate<ReceiveMessage> ReceiveMessageDelegate;
 
@@ -76,7 +80,11 @@ function HandleMessage(PlayerReplicationInfo PRI, coerce string S, name Type, op
     }
 }
 
-reliable client event TeamMessage(PlayerReplicationInfo PRI, coerce string S, name Type, optional float MsgLifeTime)
+reliable client event TeamMessage(
+    PlayerReplicationInfo PRI,
+    coerce string S,
+    name Type,
+    optional float MsgLifeTime)
 {
     HandleMessage(PRI, S, Type, MsgLifeTime);
 }
