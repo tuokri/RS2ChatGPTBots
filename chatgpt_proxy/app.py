@@ -23,11 +23,16 @@
 # Implements a simple proxy server for communication between an UnrealScript
 # client and OpenAI servers.
 
+import asyncio
+import multiprocessing as mp
 import os
+import secrets
+import time
 from dataclasses import dataclass
 from types import SimpleNamespace
 from typing import TypeAlias
 
+import asyncpg
 import openai
 import sanic
 from sanic import Blueprint
@@ -39,6 +44,7 @@ api_v1 = Blueprint("api", version_prefix="/api/v", version=1)
 
 class Context(SimpleNamespace):
     client: openai.AsyncOpenAI | None
+    pg_pool: asyncpg.pool.Pool | None
 
 
 App: TypeAlias = sanic.Sanic[sanic.Config, Context]
@@ -53,7 +59,6 @@ app.blueprint(api_v1)
 # - /message_history: (context) post here to keep a short log of previous chat messages.
 # - /players: (context) post/delete here to keep the current player list up to date.
 # - /kills: (context) post here to keep a short log of previous kills.
-# - /reset_context: (context) reset all context data.
 # - /base_prompt: (context) appended in front of all requests to the LLM.
 
 # TODO: example prompt.
@@ -69,6 +74,19 @@ class MessageContext:
     pass
 
 
+@api_v1.post("/game")
+async def post_game(
+        request: Request,
+        pg_pool: asyncpg.pool.Pool,
+) -> HTTPResponse:
+    game_id = secrets.token_hex(32)
+
+    async with pg_pool.acquire() as conn:
+        pass
+
+    return sanic.text(game_id)
+
+
 @api_v1.post("/game/<game_id>/message")
 async def post_game_message(
         request: Request,
@@ -82,14 +100,45 @@ async def post_game_message(
 async def before_server_start(app_: App, _):
     api_key = os.environ.get("OPENAI_API_KEY")
     client = openai.AsyncOpenAI(api_key=api_key)
-    app.ctx.client = client
+    app_.ctx.client = client
     app_.ext.dependency(client)
+
+    db_url = os.environ.get("DATABASE_URL")
+    pool = await asyncpg.create_pool(dsn=db_url)
+    app_.ctx.pg_pool = pool
+    app_.ext.dependency(pool)
 
 
 @app.before_server_stop
 async def before_server_stop(app_: App, _):
     if app_.ctx.client:
         await app_.ctx.client.close()
+
+
+async def db_maintenance(stop_event: mp.Event) -> None:
+    while not stop_event.wait(1.0):
+        print(time.time())
+    print("bye")
+
+
+def db_maintenance_process(stop_event: mp.Event) -> None:
+    asyncio.run(db_maintenance(stop_event))
+
+
+@app.main_process_ready
+async def main_process_ready(app_: App, _):
+    db_maint_event = mp.Event()
+    app_.shared_ctx.db_maint_event = db_maint_event
+    app_.manager.manage(
+        name="DatabaseMaintenanceProcess",
+        func=db_maintenance_process,
+        kwargs={"stop_event": db_maint_event},
+    )
+
+
+@app.main_process_stop
+async def main_process_stop(app_: App, _):
+    app_.shared_ctx.db_maint_event.set()
 
 
 if __name__ == "__main__":

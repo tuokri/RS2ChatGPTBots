@@ -20,10 +20,39 @@
 -- OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 -- SOFTWARE.
 
+-- Server game session. A new one begins on map change.
 CREATE TABLE IF NOT EXISTS "game"
 (
     id                  TEXT PRIMARY KEY,
     start_time          TIMESTAMPTZ NOT NULL,
+    stop_time           TIMESTAMPTZ,
     game_server_address INET        NOT NULL,
     game_server_port    INTEGER     NOT NULL
+);
+
+-- Chat messages belonging to a specific game session sent by players.
+CREATE TABLE IF NOT EXISTS "game_chat_message"
+(
+    game_id     TEXT        NOT NULL,
+    send_time   TIMESTAMPTZ NOT NULL,
+    sender_name TEXT,
+    sender_team TEXT,
+    channel     TEXT,
+
+    FOREIGN KEY (game_id) REFERENCES game (id)
+);
+
+-- Kills scored during a game session.
+CREATE TABLE IF NOT EXISTS "game_kill"
+(
+    game_id         TEXT        NOT NULL,
+    kill_time       TIMESTAMPTZ NOT NULL,
+    killer_name     TEXT,
+    victim_name     TEXT,
+    killer_team     TEXT,
+    victim_team     TEXT,
+    damage_type     TEXT,
+    kill_distance_m DOUBLE PRECISION,
+
+    FOREIGN KEY (game_id) REFERENCES game (id)
 );
