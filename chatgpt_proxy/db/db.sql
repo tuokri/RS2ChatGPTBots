@@ -23,11 +23,12 @@
 -- Server game session. A new one begins on map change.
 CREATE TABLE IF NOT EXISTS "game"
 (
-    id                  TEXT PRIMARY KEY,
-    start_time          TIMESTAMPTZ NOT NULL,
-    stop_time           TIMESTAMPTZ,
-    game_server_address INET        NOT NULL,
-    game_server_port    INTEGER     NOT NULL
+    id                          TEXT PRIMARY KEY,
+    start_time                  TIMESTAMPTZ NOT NULL,
+    stop_time                   TIMESTAMPTZ,
+    game_server_address         INET        NOT NULL,
+    game_server_port            INTEGER     NOT NULL,
+    openai_previous_response_id TEXT
 );
 
 -- Chat messages belonging to a specific game session sent by players.
@@ -67,4 +68,15 @@ CREATE TABLE IF NOT EXISTS "game_player"
     score   INTEGER NOT NULL DEFAULT 0,
 
     FOREIGN KEY (game_id) REFERENCES game (id) ON DELETE CASCADE
+);
+
+-- Query history and statistics to OpenAI API.
+CREATE TABLE IF NOT EXISTS "openai_query"
+(
+    id                  BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    time                TIMESTAMPTZ NOT NULL,
+    game_server_address INET        NOT NULL,
+    game_server_port    INTEGER     NOT NULL,
+    request_length      INTEGER     NOT NULL,
+    response_length     INTEGER
 );
