@@ -39,7 +39,7 @@ CREATE TABLE IF NOT EXISTS "game_chat_message"
     sender_team TEXT,
     channel     TEXT,
 
-    FOREIGN KEY (game_id) REFERENCES game (id)
+    FOREIGN KEY (game_id) REFERENCES game (id) ON DELETE CASCADE
 );
 
 -- Kills scored during a game session.
@@ -54,5 +54,17 @@ CREATE TABLE IF NOT EXISTS "game_kill"
     damage_type     TEXT,
     kill_distance_m DOUBLE PRECISION,
 
-    FOREIGN KEY (game_id) REFERENCES game (id)
+    FOREIGN KEY (game_id) REFERENCES game (id) ON DELETE CASCADE
+);
+
+-- Represents the current state of an ongoing game, essentially
+-- reflects the in-game scoreboard (minus some columns) at a given time.
+CREATE TABLE IF NOT EXISTS "game_player"
+(
+    game_id TEXT    NOT NULL,
+    id      INTEGER NOT NULL,
+    name    TEXT    NOT NULL,
+    score   INTEGER NOT NULL DEFAULT 0,
+
+    FOREIGN KEY (game_id) REFERENCES game (id) ON DELETE CASCADE
 );

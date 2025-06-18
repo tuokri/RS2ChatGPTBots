@@ -24,10 +24,11 @@
 # client and OpenAI servers.
 
 import asyncio
+import datetime
+import ipaddress
 import multiprocessing as mp
 import os
 import secrets
-import time
 from dataclasses import dataclass
 from types import SimpleNamespace
 from typing import TypeAlias
@@ -38,6 +39,8 @@ import sanic
 from sanic import Blueprint
 from sanic.request import Request
 from sanic.response import HTTPResponse
+
+from chatgpt_proxy.db import queries
 
 api_v1 = Blueprint("api", version_prefix="/api/v", version=1)
 
@@ -68,6 +71,10 @@ app.blueprint(api_v1)
 The game currently contains the following players
 """
 
+# We prune all matches that have ended or are older
+# than 5 hours during database maintenance.
+game_expiration = datetime.timedelta(hours=5)
+
 
 @dataclass
 class MessageContext:
@@ -79,10 +86,22 @@ async def post_game(
         request: Request,
         pg_pool: asyncpg.pool.Pool,
 ) -> HTTPResponse:
+    # TODO: check some sorta JWT here!
+
     game_id = secrets.token_hex(32)
 
+    addr = ipaddress.IPv4Address("127.0.0.1")
+
     async with pg_pool.acquire() as conn:
-        pass
+        async with conn.transaction():
+            await queries.insert_game(
+                conn=conn,
+                game_id=game_id,
+                game_server_address=addr,
+                game_server_port=6969,
+                start_time=datetime.datetime.now(tz=datetime.timezone.utc),
+                stop_time=None,
+            )
 
     return sanic.text(game_id)
 
@@ -116,9 +135,23 @@ async def before_server_stop(app_: App, _):
 
 
 async def db_maintenance(stop_event: mp.Event) -> None:
-    while not stop_event.wait(1.0):
-        print(time.time())
-    print("bye")
+    # TODO: try to reduce the levels of nestedness.
+
+    pool: asyncpg.pool.Pool | None = None
+
+    try:
+        db_url = os.environ.get("DATABASE_URL")
+        pool = await asyncpg.create_pool(dsn=db_url, min_size=1, max_size=1)
+
+        while not stop_event.wait(30.0):
+            async with pool.acquire() as conn:
+                async with conn.transaction():
+                    result = await queries.delete_completed_games(conn, game_expiration)
+                    print(result)
+
+    except KeyboardInterrupt:
+        if pool:
+            await pool.close()
 
 
 def db_maintenance_process(stop_event: mp.Event) -> None:
@@ -127,13 +160,18 @@ def db_maintenance_process(stop_event: mp.Event) -> None:
 
 @app.main_process_ready
 async def main_process_ready(app_: App, _):
-    db_maint_event = mp.Event()
-    app_.shared_ctx.db_maint_event = db_maint_event
     app_.manager.manage(
         name="DatabaseMaintenanceProcess",
         func=db_maintenance_process,
-        kwargs={"stop_event": db_maint_event},
+        kwargs={"stop_event": app_.shared_ctx.db_maint_event},
+        transient=True,
     )
+
+
+@app.main_process_start
+async def main_process_start(app_: App, _):
+    db_maint_event = mp.Event()
+    app_.shared_ctx.db_maint_event = db_maint_event
 
 
 @app.main_process_stop

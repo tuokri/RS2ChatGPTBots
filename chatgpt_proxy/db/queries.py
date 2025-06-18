@@ -21,18 +21,42 @@
 # SOFTWARE.
 
 import datetime
+import ipaddress
 
 from asyncpg import Connection
 
-async def insert_game_(
-    conn: Connection,
-    game_id: str,
-    start_time: datetime.datetime,
-    stop_time: datetime.datetime,
+
+async def insert_game(
+        conn: Connection,
+        game_id: str,
+        game_server_address: ipaddress.IPv4Address,
+        game_server_port: int,
+        start_time: datetime.datetime,
+        stop_time: datetime.datetime | None = None,
 ):
     await conn.execute(
         """
         INSERT INTO "game" (id, start_time, stop_time, game_server_address, game_server_port)
         VALUES ($1, $2, $3, $4, $5)
+        """,
+        game_id,
+        start_time,
+        stop_time,
+        game_server_address,
+        game_server_port,
+    )
+
+
+async def delete_completed_games(
+        conn: Connection,
+        game_expiration: datetime.timedelta,
+) -> str:
+    return await conn.execute(
         """
+        DELETE
+        FROM "game"
+        WHERE stop_time IS NOT NULL
+           OR NOW() > (stop_time + $1)
+        """,
+        game_expiration,
     )
