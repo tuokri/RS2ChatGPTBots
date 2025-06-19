@@ -25,6 +25,8 @@ import ipaddress
 
 from asyncpg import Connection
 
+_default_conn_timeout = 15.0
+
 
 async def insert_game(
         conn: Connection,
@@ -33,6 +35,7 @@ async def insert_game(
         game_server_port: int,
         start_time: datetime.datetime,
         stop_time: datetime.datetime | None = None,
+        timeout: float | None = _default_conn_timeout,
 ):
     await conn.execute(
         """
@@ -44,12 +47,14 @@ async def insert_game(
         stop_time,
         game_server_address,
         game_server_port,
+        timeout=timeout,
     )
 
 
 async def delete_completed_games(
         conn: Connection,
         game_expiration: datetime.timedelta,
+        timeout: float | None = _default_conn_timeout,
 ) -> str:
     return await conn.execute(
         """
@@ -59,4 +64,5 @@ async def delete_completed_games(
            OR NOW() > (stop_time + $1)
         """,
         game_expiration,
+        timeout=timeout,
     )

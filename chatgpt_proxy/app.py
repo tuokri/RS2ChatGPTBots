@@ -44,7 +44,7 @@ from sanic.response import HTTPResponse
 
 from chatgpt_proxy.db import queries
 
-os.environ["LOGURU_AUTOINIT"] = "0"
+os.environ["LOGURU_AUTOINIT"] = "1"
 from loguru import logger
 
 api_v1 = Blueprint("api", version_prefix="/api/v", version=1)
@@ -59,6 +59,8 @@ App: TypeAlias = sanic.Sanic[sanic.Config, Context]
 
 app: App = sanic.Sanic(__name__, ctx=Context())
 app.blueprint(api_v1)
+# We don't expect UScript side to send large requests.
+app.config.REQUEST_MAX_SIZE = 1500
 # app.config.OAS = False
 
 # Rough API design:
@@ -121,6 +123,18 @@ async def post_game(
         pg_pool: asyncpg.pool.Pool,
 ) -> HTTPResponse:
     # TODO: check some sorta JWT here!
+
+    data = ""
+    try:
+        data = request.body.decode("utf-8")
+    except UnicodeDecodeError:
+        return HTTPResponse(status=HTTPStatus.BAD_REQUEST)
+
+    if not data:
+        return HTTPResponse(status=HTTPStatus.BAD_REQUEST)
+
+    #
+    values = data.split(";")
 
     game_id = secrets.token_hex(32)
 
@@ -209,7 +223,7 @@ async def db_maintenance(stop_event: EventType) -> None:
         pool = await asyncpg.create_pool(dsn=db_url, min_size=1, max_size=1)
 
         while not stop_event.wait(db_maintenance_interval):
-            async with pool.acquire() as conn:
+            async with pool.acquire(timeout=5.0) as conn:
                 async with conn.transaction():
                     result = await queries.delete_completed_games(conn, game_expiration)
                     logger.info(result)
@@ -245,4 +259,5 @@ async def main_process_stop(app_: App, _):
 
 
 if __name__ == "__main__":
+    app.config.INSPECTOR = True
     app.run(host="0.0.0.0", port=8080, debug=True, dev=True)
