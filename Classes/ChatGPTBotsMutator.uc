@@ -20,7 +20,9 @@
  * SOFTWARE.
  */
 
-class ChatGPTBotsMutator extends ROMutator;
+class ChatGPTBotsMutator extends ROMutator
+    config(Mutator_ChatGPTBots)
+    dependson(HttpSock);
 
 // TODO: add way to hook into in game chat messages.
 //   * Some sort of logic on when to actually send messages to the proxy server.
@@ -28,11 +30,77 @@ class ChatGPTBotsMutator extends ROMutator;
 //     bots or just some sort of proxy actor?
 //   * Prefixed chat commands? For example with "!bot bla bla blu blu".
 
+var HttpSock Sock;
+var CGBMutatorConfig Config;
+
+function CreateHTTPClient()
+{
+    Sock = Spawn(class'HttpSock', self);
+    if (Sock == None)
+    {
+        `cgberror("failed to spawn HttpSock!");
+        return;
+    }
+}
+
+function CreateConfig()
+{
+    Config = new class'CGBMutatorConfig';
+    if (Config == None)
+    {
+        `cgberror("failed to initialize config!");
+        return;
+    }
+    Config.ValidateConfig();
+}
+
 event PreBeginPlay()
 {
     super.PreBeginPlay();
 
+    CreateHTTPClient();
+    CreateConfig();
+
     `cgblog("mutator initialized");
+}
+
+function HTTPGet(string Url, optional float Deadline = 2.0)
+{
+    if (Sock == None)
+    {
+        return;
+    }
+
+    `cgblog("sending HTTP GET request to: " $ Url);
+    Sock.Get(Url);
+    SetCancelOpenLinkTimer(Deadline);
+}
+
+function HTTPPost(string Url, optional float Deadline = 2.0)
+{
+    if (Sock == None)
+    {
+        return;
+    }
+
+    `cgblog("sending HTTP POST request to: " $ Url);
+    Sock.Post(Url);
+    SetCancelOpenLinkTimer(Deadline);
+}
+
+final function SetCancelOpenLinkTimer(optional float Deadline = 2.0)
+{
+    SetTimer(Deadline, False, NameOf(CancelOpenLink));
+}
+
+// Stupid hack to avoid HttpSock from spamming logs if connection fails!
+final function CancelOpenLink()
+{
+    if (Sock != None)
+    {
+        `cgblog("cancelling HttpSock connection attempt");
+        Sock.Abort();
+    }
 }
 
 function NotifyLogout(Controller Exiting)
