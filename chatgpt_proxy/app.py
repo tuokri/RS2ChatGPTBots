@@ -69,11 +69,36 @@ app.blueprint(api_v1)
 # - /kills: (context) post here to keep a short log of previous kills.
 # - /base_prompt: (context) appended in front of all requests to the LLM.
 
-# TODO: example prompt.
+# TODO: example prompt (the first one per game session).
+# TODO: this should only be sent from the UScript side after a small
+#       delay to allow the game state to "stabilize".
 """
 {base_prompt}
 
-The game currently contains the following players
+This is the beginning of a new game. The game currently contains the following players.
+```
+Insert compact table of players (scoreboard).
+```
+
+The last {X} kills scored during the game are the following (in chronological order):
+```
+Insert compact table of kills here.
+```
+
+The last {X} chat messages sent during the game are the following (in chronological order):
+```
+Insert compact table of chat messages here.
+```
+
+{first_instruction}
+"""
+# TODO: subsequent prompts should only need to update the data. E.g.:
+"""
+Since the beginning of the game, the following additional events have happened:
+{a} e.g. list of players joined/left
+{b} e.g. list of kills
+{c} e.g. list of chat messages
+{instruction_to_llm}
 """
 
 # We prune all matches that have ended or are older

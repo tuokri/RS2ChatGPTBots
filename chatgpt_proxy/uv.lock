@@ -66,6 +66,7 @@ dependencies = [
     { name = "asyncpg" },
     { name = "loguru" },
     { name = "openai" },
+    { name = "py-markdown-table" },
     { name = "sanic", extra = ["ext"] },
 ]
 
@@ -80,6 +81,7 @@ requires-dist = [
     { name = "asyncpg", specifier = ">=0.30.0" },
     { name = "loguru", specifier = ">=0.7.3" },
     { name = "openai", specifier = ">=1.88.0" },
+    { name = "py-markdown-table", specifier = ">=1.3.0" },
     { name = "sanic", extras = ["ext"], specifier = ">=25.3.0" },
 ]
 
@@ -324,6 +326,15 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/ca/bc/f35b8446f4531a7cb215605d100cd88b7ac6f44ab3fc94870c120ab3adbf/pathspec-0.12.1.tar.gz", hash = "sha256:a482d51503a1ab33b1c67a6c3813a26953dbdc71c31dacaef9a838c4e29f5712", size = 51043 }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/cc/20/ff623b09d963f88bfde16306a54e12ee5ea43e9b597108672ff3a408aad6/pathspec-0.12.1-py3-none-any.whl", hash = "sha256:a0d503e138a4c123b27490a4f7beda6a01c6f288df0e4a8b79c7eb0dc7b4cc08", size = 31191 },
+]
+
+[[package]]
+name = "py-markdown-table"
+version = "1.3.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/dd/f6/9ab65a746a4ab6618e4c9da6875cacee269c496694dcbeab8ead9ebb29dc/py_markdown_table-1.3.0.tar.gz", hash = "sha256:be63f6bcbe32e10a9a68575eb48a648949df067b54b48ad6d993b0e5748f57d6", size = 15714 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/35/5e/c4afc80e5a76aa7d0801378cb720a2f894097c25497221ad139b5b73d24d/py_markdown_table-1.3.0-py3-none-any.whl", hash = "sha256:b8740b57e466f343dbb1e9c7ca4e2d1b4281d96fb922bf1ed60b6c496c8725c4", size = 13426 },
 ]
 
 [[package]]
