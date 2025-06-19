@@ -10,16 +10,16 @@
     `cond, \
     `if(`tag) name("CGBMutator-" $ string(`tag)) `else 'CGBMutator' `endif)
 
-`define cbgwarn(msg, cond) `cgblog(`msg, `cond, 'WARNING')
-`define cbgerror(msg, cond) `cgblog(`msg, `cond, 'ERROR')
+`define cgbwarn(msg, cond) `cgblog(`msg, `cond, 'WARNING')
+`define cgberror(msg, cond) `cgblog(`msg, `cond, 'ERROR')
 
-`define cbgswarn(msg, cond) `cgbslog(`msg, `cond, 'WARNING')
-`define cbgserror(msg, cond) `cgbslog(`msg, `cond, 'ERROR')
+`define cgbswarn(msg, cond) `cgbslog(`msg, `cond, 'WARNING')
+`define cgbserror(msg, cond) `cgbslog(`msg, `cond, 'ERROR')
 
 `if(`isdefined(CGB_DEBUG))
-    `define cbgdebug(msg, cond) `cgblog(`msg, `cond, 'DEBUG')
-    `define cbgsdebug(msg, cond) `cgbslog(`msg, `cond, 'DEBUG')
+    `define cgbdebug(msg, cond) `cgblog(`msg, `cond, 'DEBUG')
+    `define cgbsdebug(msg, cond) `cgbslog(`msg, `cond, 'DEBUG')
 `else
-    `define cbgdebug(msg, cond, tag)
-    `define cbgsdebug(msg, cond, tag)
+    `define cgbdebug(msg, cond, tag)
+    `define cgbsdebug(msg, cond, tag)
 `endif
