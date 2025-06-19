@@ -24,6 +24,8 @@ class ChatGPTBotsMutator extends ROMutator
     config(Mutator_ChatGPTBots)
     dependson(HttpSock);
 
+// TODO: prevent making parallel requests! HttpSock can only handle one at a time.
+
 // TODO: add way to hook into in game chat messages.
 //   * Some sort of logic on when to actually send messages to the proxy server.
 //   * Which bots do we use to broadcast in game messages? Should we use actual
@@ -32,6 +34,9 @@ class ChatGPTBotsMutator extends ROMutator
 
 var HttpSock Sock;
 var CGBMutatorConfig Config;
+var bool bWaitingForResp; // TODO: just use a queue instead of a flag like this!
+
+var string GameId;
 
 function CreateHTTPClient()
 {
@@ -64,7 +69,7 @@ event PreBeginPlay()
     `cgblog("mutator initialized");
 }
 
-function HTTPGet(string Url, optional float Deadline = 2.0)
+function HTTPGet(string Url, optional float Timeout = 2.0)
 {
     if (Sock == None)
     {
@@ -73,10 +78,11 @@ function HTTPGet(string Url, optional float Deadline = 2.0)
 
     `cgblog("sending HTTP GET request to: " $ Url);
     Sock.Get(Url);
-    SetCancelOpenLinkTimer(Deadline);
+    bWaitingForResp = True;
+    SetCancelOpenLinkTimer(Timeout);
 }
 
-function HTTPPost(string Url, optional float Deadline = 2.0)
+function HTTPPost(string Url, optional string PostData, optional float Timeout = 2.0)
 {
     if (Sock == None)
     {
@@ -84,13 +90,50 @@ function HTTPPost(string Url, optional float Deadline = 2.0)
     }
 
     `cgblog("sending HTTP POST request to: " $ Url);
-    Sock.Post(Url);
-    SetCancelOpenLinkTimer(Deadline);
+    Sock.Post(Url, PostData);
+    bWaitingForResp = True;
+    SetCancelOpenLinkTimer(Timeout);
 }
 
-final function SetCancelOpenLinkTimer(optional float Deadline = 2.0)
+function PostGame(/* TODO: game data arguments here! */)
 {
-    SetTimer(Deadline, False, NameOf(CancelOpenLink));
+    local string PostData;
+
+    HTTPPost(Config.ApiUrl $ "game", PostData);
+}
+
+// Requests an LLM response from the server, taking current game state
+// into account, in addition to the provided prompt.
+function PostGameMessage(string Prompt)
+{
+    local string PostData;
+
+    if (GameId == "")
+    {
+        `cgbwarn("attempted to post game message without GameId");
+        return;
+    }
+
+    HTTPPost(Config.ApiUrl $ "game/" $ GameId $ "/message", PostData);
+}
+
+// TODO: should we send these in batches?
+function PostGameChatMessage()
+{
+    local string PostData;
+
+    if (GameId == "")
+    {
+        `cgbwarn("attempted to post game chat message without GameId");
+        return;
+    }
+
+    HTTPPost(Config.ApiUrl $ "game/" $ GameId $ "/chat_message", PostData);
+}
+
+final function SetCancelOpenLinkTimer(optional float Timeout = 2.0)
+{
+    SetTimer(Timeout, False, NameOf(CancelOpenLink));
 }
 
 // Stupid hack to avoid HttpSock from spamming logs if connection fails!
@@ -100,6 +143,7 @@ final function CancelOpenLink()
     {
         `cgblog("cancelling HttpSock connection attempt");
         Sock.Abort();
+        bWaitingForResp = False;
     }
 }
 
@@ -116,4 +160,8 @@ function NotifyLogin(Controller NewPlayer)
 function ScoreKill(Controller Killer, Controller Victim)
 {
     super.ScoreKill(Killer, Victim);
+}
+
+DefaultProperties
+{
 }
