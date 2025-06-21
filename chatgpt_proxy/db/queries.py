@@ -24,6 +24,7 @@ import datetime
 import ipaddress
 
 from asyncpg import Connection
+from asyncpg import Record
 
 _default_conn_timeout = 15.0
 
@@ -47,6 +48,35 @@ async def insert_game(
         stop_time,
         game_server_address,
         game_server_port,
+        timeout=timeout,
+    )
+
+
+# NOTE: assuming we only ever have to update stop_time!
+async def update_game(
+        conn: Connection,
+        game_id: str,
+        stop_time: datetime.datetime,
+        timeout: float | None = _default_conn_timeout,
+):
+    raise NotImplementedError
+
+
+# TODO: what's the best way to handle this? If we make this too dynamic
+#       it's going to cross into ORM territory quickly.
+#       For now, assume we only ever want to select by game_id and
+#       return all columns even if it is wasteful.
+async def select_game(
+        conn: Connection,
+        game_id: str,
+        timeout: float | None = _default_conn_timeout,
+) -> Record | None:
+    return await conn.fetchrow(
+        """
+        SELECT * FROM "game"
+        WHERE game_id = $1
+        """,
+        game_id,
         timeout=timeout,
     )
 
