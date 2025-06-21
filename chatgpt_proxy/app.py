@@ -30,6 +30,7 @@ import multiprocessing as mp
 import os
 import secrets
 from dataclasses import dataclass
+from enum import StrEnum
 from http import HTTPStatus
 from multiprocessing.synchronize import Event as EventType
 from types import SimpleNamespace
@@ -116,6 +117,12 @@ is_prod_env = "FLY_APP_NAME" in os.environ
 game_id_length = 24
 
 
+# Mirrored in ChatGPTBotsMutator.uc!
+class SayType(StrEnum):
+    ALL = "0"
+    TEAM = "1"
+
+
 @dataclass
 class MessageContext:
     pass
@@ -169,6 +176,51 @@ async def post_game(
     return sanic.text(game_id)
 
 
+@api_v1.put("/game/<game_id>")
+async def put_game(
+        request: Request,
+        game_id: str,
+        pg_pool: asyncpg.pool.Pool,
+) -> HTTPResponse:
+    """Update existing game. We break a REST principle here by
+    allowing partial updates in PUT, mostly because we're lazy,
+    due to the fact that the existing UScript HTTP client lacks
+    PATCH support.
+    """
+
+    # TODO: auth + validation.
+
+    # Assuming the only time we'll get a PUT on /game is when
+    # it's marked as finished by the game server.
+    # TODO: make this support other fields too if needed.
+
+    async with pg_pool.acquire() as conn:
+        game = await queries.select_game(
+            conn=conn,
+            game_id=game_id,
+        )
+        if not game:
+            return HTTPResponse(status=HTTPStatus.NOT_FOUND)
+        start_time: datetime.datetime = game["start_time"]
+
+    try:
+        world_time = float(request.body.decode("utf-8"))
+        stop_time = start_time + datetime.timedelta(seconds=world_time)
+    except Exception as e:
+        logger.debug("error parsing game data", exc_info=e)
+        return HTTPResponse(HTTPStatus.BAD_REQUEST)
+
+    async with pg_pool.acquire() as conn:
+        async with conn.transaction():
+            await queries.update_game(
+                conn=conn,
+                game_id=game_id,
+                stop_time=stop_time,
+            )
+
+    return HTTPResponse(status=HTTPStatus.OK)
+
+
 @api_v1.post("/game/<game_id>/message")
 async def post_game_message(
         request: Request,
@@ -208,6 +260,8 @@ async def post_game_chat_message(
         request: Request,
         game_id: str,
 ) -> HTTPResponse:
+
+
     return sanic.HTTPResponse(status=HTTPStatus.OK)
 
 
@@ -228,6 +282,8 @@ async def before_server_start(app_: App, _):
 async def before_server_stop(app_: App, _):
     if app_.ctx.client:
         await app_.ctx.client.close()
+    if app_.ctx.pg_pool:
+        await app_.ctx.pg_pool.close()
 
 
 async def db_maintenance(stop_event: EventType) -> None:
