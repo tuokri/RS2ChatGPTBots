@@ -32,6 +32,7 @@ CREATE TABLE IF NOT EXISTS "game_server_api_key"
 CREATE TABLE IF NOT EXISTS "game"
 (
     id                          TEXT PRIMARY KEY,
+    level                       TEXT        NOT NULL,
     start_time                  TIMESTAMPTZ NOT NULL,
     stop_time                   TIMESTAMPTZ,
     game_server_address         INET        NOT NULL,
