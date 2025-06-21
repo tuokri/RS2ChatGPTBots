@@ -32,9 +32,33 @@ class ChatGPTBotsMutator extends ROMutator
 //     bots or just some sort of proxy actor?
 //   * Prefixed chat commands? For example with "!bot bla bla blu blu".
 
+// TODO: give the LLM a max message length. Check what is best suitable.
+const MAX_MESSAGE_LENGTH = 260;
+
+// TODO: add other verbs if needed.
+enum EHTTPVerb
+{
+    Verb_Get,
+    Verb_Post,
+};
+
+struct Request
+{
+    var EHTTPVerb Verb;
+    var string Url;
+    var string Data;
+    var delegate<HttpSock.OnComplete> OnComplete;
+    var delegate<HttpSock.OnReturnCode> OnReturnCode;
+    var delegate<HttpSock.OnResolveFailed> OnResolveFailed;
+    var delegate<HttpSock.OnConnectionTimeout> OnConnectionTimeout;
+    var delegate<HttpSock.OnConnectError> OnConnectError;
+};
+
+var CGBProxy CGBProxy;
 var HttpSock Sock;
 var CGBMutatorConfig Config;
-var bool bWaitingForResp; // TODO: just use a queue instead of a flag like this!
+var array<Request> RequestQueue;
+var bool bRequestOngoing;
 
 var string GameId;
 
@@ -59,14 +83,78 @@ function CreateConfig()
     Config.ValidateConfig();
 }
 
+function FinishRequest()
+{
+    bRequestOngoing = False;
+    ClearTimer(NameOf(CancelOpenLink));
+}
+
+function PostGameChatMessage_OnComplete(HttpSock Sender)
+{
+    FinishRequest();
+}
+
+function PostGameChatMessage_OnReturnCode(HttpSock Sender, int ReturnCode, string ReturnMessage, string HttpVer)
+{
+    // NOTE: request may still be ongoing after this!
+}
+
+function PostGameChatMessage_OnResolveFailed(HttpSock Sender, string Hostname)
+{
+    FinishRequest();
+}
+
+function PostGameChatMessage_OnConnectionTimeout(HttpSock Sender)
+{
+    FinishRequest();
+}
+
+function PostGameChatMessage_OnConnectError(HttpSock Sender)
+{
+    FinishRequest();
+}
+
+function OverrideBroadcastHandler()
+{
+    // TODO: can this cause conflict with client and server?
+    if (WorldInfo.NetMode != NM_DedicatedServer)
+    {
+        return;
+    }
+
+    if (WorldInfo.Game.BroadcastHandler.Class != class'ROBroadcastHandler')
+    {
+        `cgbwarn("BroadcastHandler class is unexpected:"
+            @ WorldInfo.Game.BroadcastHandler.Class
+            $ ", already overridden by another mod?"
+        );
+    }
+
+    WorldInfo.Game.BroadcastHandler = Spawn(class'CGBBroadCastHandler', WorldInfo.Game);
+}
+
+function ReceiveMessage(PlayerReplicationInfo Sender, string Msg, name Type)
+{
+    PostGameChatMessage(Sender, Msg, Type);
+}
+
 event PreBeginPlay()
 {
     super.PreBeginPlay();
 
     CreateHTTPClient();
     CreateConfig();
+    OverrideBroadcastHandler();
 
     `cgblog("mutator initialized");
+}
+
+event PostBeginPlay()
+{
+    super.PostBeginPlay();
+
+    CGBProxy = Spawn(class'CGBProxy');
+    CGBProxy.AddReceiver(ReceiveMessage);
 }
 
 function HTTPGet(string Url, optional float Timeout = 2.0)
@@ -78,7 +166,6 @@ function HTTPGet(string Url, optional float Timeout = 2.0)
 
     `cgblog("sending HTTP GET request to: " $ Url);
     Sock.Get(Url);
-    bWaitingForResp = True;
     SetCancelOpenLinkTimer(Timeout);
 }
 
@@ -91,7 +178,6 @@ function HTTPPost(string Url, optional string PostData, optional float Timeout =
 
     `cgblog("sending HTTP POST request to: " $ Url);
     Sock.Post(Url, PostData);
-    bWaitingForResp = True;
     SetCancelOpenLinkTimer(Timeout);
 }
 
@@ -99,7 +185,9 @@ function PostGame(/* TODO: game data arguments here! */)
 {
     local string PostData;
 
-    HTTPPost(Config.ApiUrl $ "game", PostData);
+    // TODO: queue request here.
+
+    // HTTPPost(Config.ApiUrl $ "game", PostData);
 }
 
 // Requests an LLM response from the server, taking current game state
@@ -114,12 +202,15 @@ function PostGameMessage(string Prompt)
         return;
     }
 
-    HTTPPost(Config.ApiUrl $ "game/" $ GameId $ "/message", PostData);
+    // TODO: queue request here.
+
+    // HTTPPost(Config.ApiUrl $ "game/" $ GameId $ "/message", PostData);
 }
 
 // TODO: should we send these in batches?
-function PostGameChatMessage()
+function PostGameChatMessage(PlayerReplicationInfo Sender, string Msg, name Type)
 {
+    local Request Request;
     local string PostData;
 
     if (GameId == "")
@@ -128,7 +219,64 @@ function PostGameChatMessage()
         return;
     }
 
-    HTTPPost(Config.ApiUrl $ "game/" $ GameId $ "/chat_message", PostData);
+    // TODO: build request here, put it in queue.
+    // TODO: if queue processing timer is active, no need to set it,
+    //       else set it. It will set the timer again, itself, if
+    //       there are more requests to process.
+
+    Request.Url = Config.ApiUrl $ "game/" $ GameId $ "/chat_message";
+    Request.Data = Msg; // TODO: make proper newline-separated data.
+    Request.Verb = Verb_Post;
+    Request.OnComplete = PostGameChatMessage_OnComplete;
+    Request.OnReturnCode = PostGameChatMessage_OnReturnCode;
+    Request.OnResolveFailed = PostGameChatMessage_OnResolveFailed;
+    Request.OnConnectionTimeout = PostGameChatMessage_OnConnectionTimeout;
+    Request.OnConnectError = PostGameChatMessage_OnConnectError;
+
+    RequestQueue.AddItem(Request);
+    if (!IsTimerActive(NameOf(ProcessRequestQueue)))
+    {
+        SetTimer(0.001, False, NameOf(ProcessRequestQueue));
+    }
+}
+
+final function ProcessRequestQueue()
+{
+    // TODO: if we want parallel request capability we need to spawn
+    //       and destroy sockets dynamically for each request.
+    if (bRequestOngoing)
+    {
+        SetTimer(0.001, False, NameOf(ProcessRequestQueue));
+    }
+
+    switch (RequestQueue[0].Verb)
+    {
+        case Verb_Get:
+            HTTPGet(RequestQueue[0].Url);
+            break;
+        case Verb_Post:
+            HTTPPost(
+                RequestQueue[0].Url,
+                RequestQueue[0].Data,
+            );
+            break;
+        default:
+            `cgberror("invalid HTTPVerb:" @ RequestQueue[0].Verb);
+            break;
+    }
+
+    bRequestOngoing = True;
+    Sock.OnComplete = RequestQueue[0].OnComplete;
+    Sock.OnReturnCode = RequestQueue[0].OnReturnCode;
+    Sock.OnResolveFailed = RequestQueue[0].OnResolveFailed;
+    Sock.OnConnectionTimeout = RequestQueue[0].OnConnectionTimeout;
+    Sock.OnConnectError = RequestQueue[0].OnConnectError;
+
+    RequestQueue.Remove(0, 1);
+    if (RequestQueue.Length > 0)
+    {
+        SetTimer(0.001, False, NameOf(ProcessRequestQueue));
+    }
 }
 
 final function SetCancelOpenLinkTimer(optional float Timeout = 2.0)
@@ -143,8 +291,13 @@ final function CancelOpenLink()
     {
         `cgblog("cancelling HttpSock connection attempt");
         Sock.Abort();
-        bWaitingForResp = False;
+        Sock.OnComplete = None;
+        Sock.OnReturnCode = None;
+        Sock.OnResolveFailed = None;
+        Sock.OnConnectionTimeout = None;
+        Sock.OnConnectError = None;
     }
+    bRequestOngoing = False;
 }
 
 function NotifyLogout(Controller Exiting)

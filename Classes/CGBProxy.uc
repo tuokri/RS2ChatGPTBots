@@ -21,6 +21,7 @@
  */
 
 // Custom proxy for capturing chat messages.
+// TODO: there's probably more stuff that needs to be cleaned up from ROPC here!
 class CGBProxy extends ROPlayerController;
 
 var array< delegate<ReceiveMessage> > Receivers;
@@ -110,6 +111,10 @@ reliable client function ClientRestart(Pawn NewPawn)
     super(PlayerController).ClientRestart(NewPawn);
 }
 
+function Spawned()
+{
+}
+
 function InitPlayerReplicationInfo()
 {
     super.InitPlayerReplicationInfo();
@@ -151,7 +156,59 @@ function Reset()
 {
 }
 
+function InitTeamSelect()
+{
+}
+
+function InitialiseCCMs()
+{
+}
+
+function InitialiseCharacterPreview(byte TeamIndex, optional bool bDisplayOnly)
+{
+}
+
+simulated function OnMapInfoReady(ROSeqAct_MapInfoReady Action)
+{
+}
+
+simulated function CheckCommanderSpeech()
+{
+}
+
 reliable client function ClientReset()
+{
+}
+
+reliable client function ClientShowRoundStartScreen(int TimeDelay)
+{
+}
+
+simulated function AutoSelectSquad()
+{
+}
+
+reliable protected server function ServerAutoSelectSquad()
+{
+}
+
+function VotingHandler(ERORequestPromptType VoteType, optional bool bIsNOVote)
+{
+}
+
+reliable client function DelayedShowWinScreen(bool bMatch)
+{
+}
+
+simulated function ShowRoundWinScreen(byte WinningTeam, byte WinCondition, optional bool bUseCapturesForTieBreaking, optional int NorthTeamPointsTotal, optional int SouthTeamPointsTotal,
+                                      optional int NorthRemainingReinforcements, optional int SouthRemainingReinforcements, optional int NorthTotalObjectivesCaptured,
+                                      optional int SouthTotalObjectivesCaptured, optional int RoundTime, optional int NorthFastestWinTime, optional int SouthFastestWinTime,
+                                      optional int NorthRoundScore, optional int SouthRoundScore, optional byte ReachedObjectiveIndex, optional int NorthEnemiesKilled,
+                                      optional int SouthEnemiesKilled, optional int NorthEnemiesRemaining, optional int SouthEnemiesRemaining )
+{
+}
+
+function SetCinematicMode( bool bInCinematicMode, bool bHidePlayer, bool bAffectsHUD, bool bAffectsMovement, bool bAffectsTurning, bool bAffectsButtons )
 {
 }
 

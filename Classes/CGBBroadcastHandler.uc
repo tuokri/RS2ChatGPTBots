@@ -23,6 +23,17 @@
 // Custom broadcast handler to capture all messages via our custom CGBProxy.
 class CGBBroadcastHandler extends ROBroadcastHandler;
 
+function bool AllowsBroadcast(Actor Broadcaster, int InLen)
+{
+    // Always allow incoming messages from the LLM.
+    if (Broadcaster.IsA('CGBProxy'))
+    {
+        return True;
+    }
+
+    return Super.AllowsBroadcast(Broadcaster, InLen);
+}
+
 function Broadcast(Actor Sender, coerce string Msg, optional name Type)
 {
     local PlayerController PC;
