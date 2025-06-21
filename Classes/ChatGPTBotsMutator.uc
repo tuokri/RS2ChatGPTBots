@@ -35,11 +35,16 @@ class ChatGPTBotsMutator extends ROMutator
 // TODO: give the LLM a max message length. Check what is best suitable.
 const MAX_MESSAGE_LENGTH = 260;
 
+const SAY_ALL = "0";
+const SAY_TEAM = "1";
+
 // TODO: add other verbs if needed.
 enum EHTTPVerb
 {
     Verb_Get,
     Verb_Post,
+    Verb_Put,
+    Verb_Delete
 };
 
 struct Request
@@ -89,6 +94,33 @@ function FinishRequest()
     ClearTimer(NameOf(CancelOpenLink));
 }
 
+// Send the response from the LLM to in-game chat.
+function PostGameMessage_OnComplete(HttpSock Sender)
+{
+    local string SayType;
+    local string Msg;
+
+    `cgbdebug("ReturnData:" @ Sender.ReturnData);
+
+    // TODO: parse SayType\nMessage
+
+    // TODO: is this the best way to send messages here?
+    if (SayType == SAY_TEAM)
+    {
+        CGBProxy.ServerTeamSay("TODO: message here!");
+    }
+    else if (SayType == SAY_ALL)
+    {
+        CGBProxy.ServerSay("TODO: what the dog?");
+    }
+    else
+    {
+        `cgberror("invalid SayType:" @ SayType);
+    }
+
+    FinishRequest();
+}
+
 function PostGameChatMessage_OnComplete(HttpSock Sender)
 {
     FinishRequest();
@@ -97,20 +129,28 @@ function PostGameChatMessage_OnComplete(HttpSock Sender)
 function PostGameChatMessage_OnReturnCode(HttpSock Sender, int ReturnCode, string ReturnMessage, string HttpVer)
 {
     // NOTE: request may still be ongoing after this!
+
+    `cgbdebug("HTTP request:" @ ReturnCode @ ReturnMessage);
 }
 
 function PostGameChatMessage_OnResolveFailed(HttpSock Sender, string Hostname)
 {
+    `cbgerror("resolve failed for hostname:" @ Hostname);
+
     FinishRequest();
 }
 
 function PostGameChatMessage_OnConnectionTimeout(HttpSock Sender)
 {
+    `cbgerror(Sender @ "connection timed out");
+
     FinishRequest();
 }
 
 function PostGameChatMessage_OnConnectError(HttpSock Sender)
 {
+    `cgberror(Sender @ "connection failed");
+
     FinishRequest();
 }
 
@@ -178,6 +218,30 @@ function HTTPPost(string Url, optional string PostData, optional float Timeout =
 
     `cgblog("sending HTTP POST request to: " $ Url);
     Sock.Post(Url, PostData);
+    SetCancelOpenLinkTimer(Timeout);
+}
+
+function HTTPPut(string Url, optional string PutData, optional float Timeout = 2.0)
+{
+    if (Sock == None)
+    {
+        return;
+    }
+
+    `cgblog("sending HTTP PUT request to: " $ Url);
+    Sock.Put(Url, PutData);
+    SetCancelOpenLinkTimer(Timeout);
+}
+
+function HTTPDelete(string Url, optional float Timeout = 2.0)
+{
+    if (Sock == None)
+    {
+        return;
+    }
+
+    `cgblog("sending HTTP DELETE request to: " $ Url);
+    Sock.Delete(Url);
     SetCancelOpenLinkTimer(Timeout);
 }
 
@@ -255,10 +319,13 @@ final function ProcessRequestQueue()
             HTTPGet(RequestQueue[0].Url);
             break;
         case Verb_Post:
-            HTTPPost(
-                RequestQueue[0].Url,
-                RequestQueue[0].Data,
-            );
+            HTTPPost(RequestQueue[0].Url, RequestQueue[0].Data);
+            break;
+        case Verb_Put:
+            HTTPPut(RequestQueue[0].Url, RequestQueue[0].Data);
+            break;
+        case Verb_Delete:
+            HTTPDelete(RequestQueue[0].Url);
             break;
         default:
             `cgberror("invalid HTTPVerb:" @ RequestQueue[0].Verb);
