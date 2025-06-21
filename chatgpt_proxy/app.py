@@ -111,10 +111,21 @@ db_maintenance_interval = 30.0
 prompt_max_chat_messages = 15
 prompt_max_kills = 15
 
+is_prod_env = "FLY_APP_NAME" in os.environ
+
+game_id_length = 24
+
 
 @dataclass
 class MessageContext:
     pass
+
+
+def get_remote_addr(request: Request) -> ipaddress.IPv4Address:
+    if is_prod_env:
+        return request.headers["Fly-Client-IP"]
+    else:
+        return ipaddress.ip_address(request.remote_addr)
 
 
 @api_v1.post("/game")
@@ -122,9 +133,8 @@ async def post_game(
         request: Request,
         pg_pool: asyncpg.pool.Pool,
 ) -> HTTPResponse:
-    # TODO: check some sorta JWT here!
+    # TODO: check some sorta JWT here (the API key)!
 
-    data = ""
     try:
         data = request.body.decode("utf-8")
     except UnicodeDecodeError:
@@ -133,12 +143,17 @@ async def post_game(
     if not data:
         return HTTPResponse(status=HTTPStatus.BAD_REQUEST)
 
-    #
-    values = data.split(";")
+    try:
+        # level\nserver_game_port
+        level, port = data.split("\n")
+        game_port = int(port)
+    except Exception as e:
+        logger.debug("error parsing game data", exc_info=e)
+        return HTTPResponse(status=HTTPStatus.BAD_REQUEST)
 
-    game_id = secrets.token_hex(32)
-
-    addr = ipaddress.IPv4Address("127.0.0.1")
+    now = datetime.datetime.now(tz=datetime.timezone.utc)
+    game_id = secrets.token_hex(game_id_length)
+    addr = get_remote_addr(request)
 
     async with pg_pool.acquire() as conn:
         async with conn.transaction():
@@ -146,8 +161,8 @@ async def post_game(
                 conn=conn,
                 game_id=game_id,
                 game_server_address=addr,
-                game_server_port=6969,
-                start_time=datetime.datetime.now(tz=datetime.timezone.utc),
+                game_server_port=game_port,
+                start_time=now,
                 stop_time=None,
             )
 
@@ -162,6 +177,8 @@ async def post_game_message(
 ) -> HTTPResponse:
     # Validation: valid JWT, correct IP, correct port, request actually
     # comes from the correct IP. These should match the game_id!
+
+
 
     # await client.responses.create(
     #     previous_response_id="",
