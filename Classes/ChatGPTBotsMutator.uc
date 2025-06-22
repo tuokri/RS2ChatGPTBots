@@ -24,13 +24,14 @@ class ChatGPTBotsMutator extends ROMutator
     config(Mutator_ChatGPTBots)
     dependson(HttpSock);
 
-// TODO: prevent making parallel requests! HttpSock can only handle one at a time.
-
 // TODO: add way to hook into in game chat messages.
 //   * Some sort of logic on when to actually send messages to the proxy server.
 //   * Which bots do we use to broadcast in game messages? Should we use actual
 //     bots or just some sort of proxy actor?
 //   * Prefixed chat commands? For example with "!bot bla bla blu blu".
+
+// TODO: make generic versions of HttpSock delegates that are duplicated for
+//       all requests!
 
 // TODO: give the LLM a max message length. Check what is best suitable.
 const MAX_MESSAGE_LENGTH = 260;
@@ -57,13 +58,25 @@ struct Request
     var delegate<HttpSock.OnResolveFailed> OnResolveFailed;
     var delegate<HttpSock.OnConnectionTimeout> OnConnectionTimeout;
     var delegate<HttpSock.OnConnectError> OnConnectError;
+    var delegate<HttpSock.OnSendRequestHeaders> OnSendRequestHeaders;
+};
+
+struct GameChatMessage
+{
+    var PlayerController Sender;
+    var string Msg;
+    var name Type;
 };
 
 var CGBProxy CGBProxy;
 var HttpSock Sock;
 var CGBMutatorConfig Config;
 var array<Request> RequestQueue;
+var array<GameChatMessage> GameChatMessageQueue;
 var bool bRequestOngoing;
+
+var float FirstCheckTime;
+const MAX_GAME_WAIT_TIME = 30.0;
 
 var string GameId;
 
@@ -129,29 +142,31 @@ function PostGameChatMessage_OnComplete(HttpSock Sender)
 function PostGameChatMessage_OnReturnCode(HttpSock Sender, int ReturnCode, string ReturnMessage, string HttpVer)
 {
     // NOTE: request may still be ongoing after this!
-
+    ClearTimer(NameOf(CancelOpenLink));
     `cgbdebug("HTTP request:" @ ReturnCode @ ReturnMessage);
 }
 
 function PostGameChatMessage_OnResolveFailed(HttpSock Sender, string Hostname)
 {
     `cbgerror("resolve failed for hostname:" @ Hostname);
-
     FinishRequest();
 }
 
 function PostGameChatMessage_OnConnectionTimeout(HttpSock Sender)
 {
     `cbgerror(Sender @ "connection timed out");
-
     FinishRequest();
 }
 
 function PostGameChatMessage_OnConnectError(HttpSock Sender)
 {
     `cgberror(Sender @ "connection failed");
-
     FinishRequest();
+}
+
+function PostGameChatMessage_OnSendRequestHeaders(HttpSock Sender)
+{
+    ClearTimer(NameOf(CancelOpenLink));
 }
 
 function OverrideBroadcastHandler()
@@ -175,6 +190,32 @@ function OverrideBroadcastHandler()
 
 function ReceiveMessage(PlayerReplicationInfo Sender, string Msg, name Type)
 {
+    local int i;
+
+    // Receiving GameId from the proxy server will be delayed.
+    if (GameId == "")
+    {
+        i = GameChatMessageQueue.Length;
+        GameChatMessageQueue.Add(1);
+        GameChatMessageQueue[i].Sender = Sender;
+        GameChatMessageQueue[i].Msg = Msg;
+        GameChatMessageQueue[i].Type = Type;
+        return;
+    }
+
+    if (GameChatMessageQueue.Length > 0)
+    {
+        for (i = 0; i < GameChatMessageQueue.Length; ++i)
+        {
+            PostGameChatMessage(
+                GameChatMessageQueue[i].Sender,
+                GameChatMessageQueue[i].Msg,
+                GameChatMessageQueue[i].Type);
+        }
+
+        GameChatMessageQueue.Length = 0;
+    }
+
     PostGameChatMessage(Sender, Msg, Type);
 }
 
@@ -195,6 +236,32 @@ event PostBeginPlay()
 
     CGBProxy = Spawn(class'CGBProxy');
     CGBProxy.AddReceiver(ReceiveMessage);
+
+    FirstCheckTime = WorldInfo.RealTimeSeconds;
+    SetTimer(1.0, False, NameOf(CheckGameIsGoodToGo));
+}
+
+// Delayed check to let all the players load in.
+function CheckGameIsGoodToGo()
+{
+    local bool bGood;
+
+    if (
+        (WorldInfo.RealTimeSeconds >= FirstCheckTime + MAX_GAME_WAIT_TIME)
+        || (WorldInfo.Game.NumPlayers >= WorldInfo.Game.MaxPlayers)
+    )
+    {
+        bGood = True;
+    }
+
+    if (bGood)
+    {
+        PostGame();
+    }
+    else
+    {
+        SetTimer(1.0, False, NameOf(CheckGameIsGoodToGo));
+    }
 }
 
 function HTTPGet(string Url, optional float Timeout = 2.0)
@@ -276,6 +343,7 @@ function PostGameChatMessage(PlayerReplicationInfo Sender, string Msg, name Type
 {
     local Request Request;
     local string PostData;
+    local string MsgType;
 
     if (GameId == "")
     {
@@ -283,19 +351,28 @@ function PostGameChatMessage(PlayerReplicationInfo Sender, string Msg, name Type
         return;
     }
 
-    // TODO: build request here, put it in queue.
-    // TODO: if queue processing timer is active, no need to set it,
-    //       else set it. It will set the timer again, itself, if
-    //       there are more requests to process.
+    if (Type == 'Say')
+    {
+        MsgType = SAY_ALL;
+    }
+    else if (Type == 'TeamSay')
+    {
+        MsgType = SAY_TEAM;
+    }
+    else
+    {
+        `cbgerror("unexpected Type:" @ Type);
+    }
 
     Request.Url = Config.ApiUrl $ "game/" $ GameId $ "/chat_message";
-    Request.Data = Msg; // TODO: make proper newline-separated data.
+    Request.Data = Sender.PlayerID $ "\n" $ MsgType $ "\n" $ Msg;
     Request.Verb = Verb_Post;
     Request.OnComplete = PostGameChatMessage_OnComplete;
     Request.OnReturnCode = PostGameChatMessage_OnReturnCode;
     Request.OnResolveFailed = PostGameChatMessage_OnResolveFailed;
     Request.OnConnectionTimeout = PostGameChatMessage_OnConnectionTimeout;
     Request.OnConnectError = PostGameChatMessage_OnConnectError;
+    Request.OnSendRequestHeaders = PostGameChatMessage_OnSendRequestHeaders;
 
     RequestQueue.AddItem(Request);
     if (!IsTimerActive(NameOf(ProcessRequestQueue)))
@@ -363,22 +440,50 @@ final function CancelOpenLink()
         Sock.OnResolveFailed = None;
         Sock.OnConnectionTimeout = None;
         Sock.OnConnectError = None;
+        Sock.OnSendRequestHeaders = None;
     }
     bRequestOngoing = False;
 }
 
 function NotifyLogout(Controller Exiting)
 {
+    if (GameId == "")
+    {
+        // TODO: queue these.
+    }
+    else
+    {
+        // DeleteGamePlayer();
+    }
+
     super.NotifyLogout(Exiting);
 }
 
 function NotifyLogin(Controller NewPlayer)
 {
+    if (GameId == "")
+    {
+        // TODO: queue these.
+    }
+    else
+    {
+        // PutGamePlayer();
+    }
+
     super.NotifyLogin(NewPlayer);
 }
 
 function ScoreKill(Controller Killer, Controller Victim)
 {
+    if (GameId == "")
+    {
+        // TODO: queue these.
+    }
+    else
+    {
+        // PostGameKill();
+    }
+
     super.ScoreKill(Killer, Victim);
 }
 
