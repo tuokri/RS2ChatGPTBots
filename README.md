@@ -1,7 +1,7 @@
 # ChatGPT Bots for Rising Storm 2: Vietnam
 
 Provides a way for Rising Storm 2: Vietnam players to communicate
-with via text in-game "bots" that are powered by OpenAI's LLMs.
+via text with in-game "bots" that are powered by OpenAI's LLMs.
 
 ## Dependencies
 
