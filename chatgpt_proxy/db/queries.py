@@ -77,7 +77,7 @@ async def select_game(
     return await conn.fetchrow(
         """
         SELECT * FROM "game"
-        WHERE game_id = $1;
+        WHERE id = $1;
         """,
         game_id,
         timeout=timeout,
