@@ -26,6 +26,7 @@ class CGBMutatorConfig extends Object
     notplaceable;
 
 const CURRENT_CONFIG_VERSION = 1;
+// TODO: set the proper URL for releases!
 const DEFAULT_API_URL = "http://localhost:8080/api/v1/";
 
 var() int ConfigVersion;
