@@ -88,6 +88,7 @@ CREATE TABLE IF NOT EXISTS "game_objective_state"
 );
 
 -- Query history and statistics to OpenAI API.
+-- TODO: this should be a Timescale hypertable.
 CREATE TABLE IF NOT EXISTS "openai_query"
 (
     id                  BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,

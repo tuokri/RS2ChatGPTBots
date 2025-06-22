@@ -231,8 +231,6 @@ async def post_game_message(
     # Validation: valid JWT, correct IP, correct port, request actually
     # comes from the correct IP. These should match the game_id!
 
-
-
     # await client.responses.create(
     #     previous_response_id="",
     # )
