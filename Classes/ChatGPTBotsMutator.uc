@@ -74,6 +74,10 @@ var CGBMutatorConfig Config;
 var array<Request> RequestQueue;
 var array<GameChatMessage> GameChatMessageQueue;
 var bool bRequestOngoing;
+var bool bInitialPlayersSent;
+var int PostGameRetries; // TODO: implement retry mechanism.
+const MAX_POST_GAME_RETRIES = 5;
+const POST_GAME_RETRY_DELAY = 5.0;
 
 var float FirstCheckTime;
 const MAX_GAME_WAIT_TIME = 30.0;
@@ -316,7 +320,12 @@ function PostGame(/* TODO: game data arguments here! */)
 {
     local string PostData;
 
+    // TODO: NEED TO RETRY THIS IF IT FAILS FOR WHATEVER REASON!
+
     // TODO: queue request here.
+
+    // TODO: in the OnCompleted handler of PostGame, we need to send
+    //       the initial list of players and set bInitialPlayersSent = True!
 
     // HTTPPost(Config.ApiUrl $ "game", PostData);
 }
@@ -447,11 +456,7 @@ final function CancelOpenLink()
 
 function NotifyLogout(Controller Exiting)
 {
-    if (GameId == "")
-    {
-        // TODO: queue these.
-    }
-    else
+    if (GameId != "" && Exiting.PlayerReplicationInfo != None)
     {
         // DeleteGamePlayer();
     }
@@ -461,11 +466,7 @@ function NotifyLogout(Controller Exiting)
 
 function NotifyLogin(Controller NewPlayer)
 {
-    if (GameId == "")
-    {
-        // TODO: queue these.
-    }
-    else
+    if (GameId != "")
     {
         // PutGamePlayer();
     }
