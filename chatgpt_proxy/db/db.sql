@@ -79,6 +79,14 @@ CREATE TABLE IF NOT EXISTS "game_player"
     FOREIGN KEY (game_id) REFERENCES game (id) ON DELETE CASCADE
 );
 
+CREATE TABLE IF NOT EXISTS "game_objective_state"
+(
+    game_id    TEXT     NOT NULL,
+    objectives TEXT[][] NOT NULL,
+
+    FOREIGN KEY (game_id) REFERENCES game (id) ON DELETE CASCADE
+);
+
 -- Query history and statistics to OpenAI API.
 CREATE TABLE IF NOT EXISTS "openai_query"
 (

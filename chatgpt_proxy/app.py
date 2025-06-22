@@ -23,6 +23,7 @@
 # Implements a simple proxy server for communication between an UnrealScript
 # client and OpenAI servers.
 
+import ast
 import asyncio
 import datetime
 import ipaddress
@@ -132,7 +133,7 @@ def get_remote_addr(request: Request) -> ipaddress.IPv4Address:
     if is_prod_env:
         return request.headers["Fly-Client-IP"]
     else:
-        return ipaddress.ip_address(request.remote_addr)
+        return ipaddress.IPv4Address(request.remote_addr)
 
 
 @api_v1.post("/game")
@@ -167,6 +168,7 @@ async def post_game(
             await queries.insert_game(
                 conn=conn,
                 game_id=game_id,
+                level=level,
                 game_server_address=addr,
                 game_server_port=game_port,
                 start_time=now,
@@ -187,7 +189,6 @@ async def put_game(
     due to the fact that the existing UScript HTTP client lacks
     PATCH support.
     """
-
     # TODO: auth + validation.
 
     # Assuming the only time we'll get a PUT on /game is when
@@ -260,7 +261,48 @@ async def post_game_chat_message(
         request: Request,
         game_id: str,
 ) -> HTTPResponse:
+    return sanic.HTTPResponse(status=HTTPStatus.OK)
 
+
+@api_v1.put("/game/<game_id>/objective_state")
+async def put_game_objective_state(
+        request: Request,
+        game_id: str,
+        pg_pool: asyncpg.pool.Pool,
+) -> HTTPResponse:
+    # Defensive check to avoid passing long strings to literal_eval.
+    if len(request.body) > 2000:
+        return sanic.HTTPResponse(status=HTTPStatus.BAD_REQUEST)
+
+    # TODO: add game_exists() func!
+    async with pg_pool.acquire() as conn:
+        game = await queries.select_game(
+            conn=conn,
+            game_id=game_id,
+        )
+        if not game:
+            return HTTPResponse(status=HTTPStatus.NOT_FOUND)
+
+    # TODO: maybe do proper relative DB design for this if needed?
+    #       Right now it is done the quick and dirty way on purpose.
+    # [["Objective A", "North"], ["Objective B", "Neutral"], ...]
+    try:
+        data = request.body.decode("utf-8")
+        objs: list[list[str]] = ast.literal_eval(data)
+        t = type(objs)  # NOTE: skipping nested type checks.
+        if not t == list:
+            raise ValueError(f"expected list type, got {t}")
+    except Exception as e:
+        logger.debug("error parsing objectives data", exc_info=e)
+        return HTTPResponse(status=HTTPStatus.BAD_REQUEST)
+
+    async with pg_pool.acquire() as conn:
+        async with conn.transaction():
+            await queries.upsert_game_objective_state(
+                conn=conn,
+                game_id=game_id,
+                objectives=objs,
+            )
 
     return sanic.HTTPResponse(status=HTTPStatus.OK)
 

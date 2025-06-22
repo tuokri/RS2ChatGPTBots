@@ -32,6 +32,7 @@ _default_conn_timeout = 15.0
 async def insert_game(
         conn: Connection,
         game_id: str,
+        level: str,
         game_server_address: ipaddress.IPv4Address,
         game_server_port: int,
         start_time: datetime.datetime,
@@ -40,10 +41,12 @@ async def insert_game(
 ):
     await conn.execute(
         """
-        INSERT INTO "game" (id, start_time, stop_time, game_server_address, game_server_port)
-        VALUES ($1, $2, $3, $4, $5)
+        INSERT INTO "game"
+        (id, level, start_time, stop_time, game_server_address, game_server_port)
+        VALUES ($1, $2, $3, $4, $5, $6);
         """,
         game_id,
+        level,
         start_time,
         stop_time,
         game_server_address,
@@ -74,9 +77,29 @@ async def select_game(
     return await conn.fetchrow(
         """
         SELECT * FROM "game"
-        WHERE game_id = $1
+        WHERE game_id = $1;
         """,
         game_id,
+        timeout=timeout,
+    )
+
+
+async def upsert_game_objective_state(
+        conn: Connection,
+        game_id: str,
+        objectives: list[list[str]],
+        timeout: float | None = _default_conn_timeout,
+):
+    await conn.execute(
+        """
+        INSERT INTO "game_objective_state" (game_id, objectives)
+        VALUES ($1, $2)
+        ON CONFLICT DO UPDATE
+        SET game_id = excluded.game_id,
+            objectives = excluded.objectives;
+        """,
+        game_id,
+        objectives,
         timeout=timeout,
     )
 
@@ -91,7 +114,7 @@ async def delete_completed_games(
         DELETE
         FROM "game"
         WHERE stop_time IS NOT NULL
-           OR NOW() > (stop_time + $1)
+           OR NOW() > (stop_time + $1);
         """,
         game_expiration,
         timeout=timeout,
