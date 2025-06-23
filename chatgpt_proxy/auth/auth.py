@@ -27,6 +27,8 @@ import asyncpg.pool
 import jwt
 from sanic import Request
 
+from chatgpt_proxy.utils import get_remote_addr
+
 jwt_issuer = "ChatGPTProxy"
 jwt_audience = "ChatGPTProxy"
 
@@ -85,6 +87,13 @@ async def check_token(request: Request, pg_pool: asyncpg.pool.Pool) -> bool:
     a, p = sub.split(":")
     addr = ipaddress.IPv4Address(a)
     port = int(p)
+
+    # Small extra step of security since we can't use HTTPS.
+    # In any case, this is not really secure, but better than nothing.
+    client_addr = get_remote_addr(request)
+    if client_addr != addr:
+        # TODO: log this.
+        return False
 
     # TODO: we should cache this in memory (LRU) or diskcache.
     async with pg_pool.acquire() as conn:

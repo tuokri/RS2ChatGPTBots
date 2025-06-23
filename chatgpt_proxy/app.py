@@ -26,7 +26,6 @@
 import ast
 import asyncio
 import datetime
-import ipaddress
 import multiprocessing as mp
 import os
 import secrets
@@ -44,6 +43,8 @@ from sanic.response import HTTPResponse
 
 from chatgpt_proxy.auth import auth
 from chatgpt_proxy.db import queries
+from chatgpt_proxy.utils import get_remote_addr
+from chatgpt_proxy.utils import is_prod_env
 
 os.environ["LOGURU_AUTOINIT"] = "1"
 from loguru import logger
@@ -58,8 +59,6 @@ class Context(SimpleNamespace):
 
 App: TypeAlias = sanic.Sanic[sanic.Config, Context]
 Request: TypeAlias = sanic.Request[App, Context]
-
-is_prod_env = "FLY_APP_NAME" in os.environ
 
 app: App = sanic.Sanic("ChatGPTProxy", ctx=Context())
 app.blueprint(api_v1)
@@ -131,16 +130,6 @@ game_id_length = 24
 class SayType(StrEnum):
     ALL = "0"
     TEAM = "1"
-
-
-def get_remote_addr(request: Request) -> ipaddress.IPv4Address:
-    """Ignoring IPv6 since Steam game servers should always
-    be IPv4, and this API only expects requests from Steam GSs.
-    """
-    if is_prod_env:
-        return ipaddress.IPv4Address(request.headers["Fly-Client-IP"])
-    else:
-        return ipaddress.IPv4Address(request.remote_addr)
 
 
 @api_v1.on_request
