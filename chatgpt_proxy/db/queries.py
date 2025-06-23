@@ -29,6 +29,8 @@ from asyncpg import Record
 _default_conn_timeout = 15.0
 
 
+# TODO: add caching layer!
+
 async def insert_game(
         conn: Connection,
         game_id: str,
@@ -76,7 +78,8 @@ async def select_game(
 ) -> Record | None:
     return await conn.fetchrow(
         """
-        SELECT * FROM "game"
+        SELECT *
+        FROM "game"
         WHERE id = $1;
         """,
         game_id,
@@ -95,8 +98,8 @@ async def upsert_game_objective_state(
         INSERT INTO "game_objective_state" (game_id, objectives)
         VALUES ($1, $2)
         ON CONFLICT DO UPDATE
-        SET game_id = excluded.game_id,
-            objectives = excluded.objectives;
+            SET game_id    = excluded.game_id,
+                objectives = excluded.objectives;
         """,
         game_id,
         objectives,
@@ -117,5 +120,25 @@ async def delete_completed_games(
            OR NOW() > (stop_time + $1);
         """,
         game_expiration,
+        timeout=timeout,
+    )
+
+
+# TODO: add the rest of cols here if needed?
+async def select_game_server_api_key(
+        conn: Connection,
+        game_server_address: ipaddress.IPv4Address,
+        game_server_port: int,
+        timeout: float | None = _default_conn_timeout,
+) -> Record | None:
+    return await conn.fetchrow(
+        """
+        SELECT *
+        FROM "game_server_api_key"
+        WHERE game_server_address = $1
+          AND game_server_port = $2;
+        """,
+        game_server_address,
+        game_server_port,
         timeout=timeout,
     )

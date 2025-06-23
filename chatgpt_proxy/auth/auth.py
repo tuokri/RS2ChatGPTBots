@@ -20,13 +20,16 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
+import hashlib
 import ipaddress
 import os
+from hmac import compare_digest
 
 import asyncpg.pool
 import jwt
 from sanic import Request
 
+from chatgpt_proxy.db import queries
 from chatgpt_proxy.utils import get_remote_addr
 
 jwt_issuer = "ChatGPTProxy"
@@ -39,7 +42,7 @@ async def generate_token(
         audience: str | None = None,
         subject: str | None = None,
         payload: dict | None = None,
-) -> dict:
+) -> str:
     if secret is None:
         secret = os.environ["SANIC_SECRET"]
     if issuer is None:
@@ -51,12 +54,13 @@ async def generate_token(
     if payload is None:
         payload = {}
 
+    payload["sub"] = subject
+    payload["iss"] = issuer
+    payload["aud"] = audience
+
     return jwt.encode(
         key=secret,
         algorithm="HS256",
-        subject=subject,
-        audience=audience,
-        issuer=issuer,
         payload=payload,
     )
 
@@ -97,7 +101,19 @@ async def check_token(request: Request, pg_pool: asyncpg.pool.Pool) -> bool:
 
     # TODO: we should cache this in memory (LRU) or diskcache.
     async with pg_pool.acquire() as conn:
-        pass
+        api_key = await queries.select_game_server_api_key(
+            conn=conn,
+            game_server_address=addr,
+            game_server_port=port,
+        )
+        if not api_key:
+            return False
+
+        req_token_hash = hashlib.sha256(request.token.encode("utf-8")).digest()
+        db_api_key_hash = api_key["api_key_hash"]
+        if not compare_digest(req_token_hash, db_api_key_hash):
+            # TODO: maybe log this too?
+            return False
 
     return True
 

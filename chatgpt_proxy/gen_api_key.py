@@ -35,7 +35,7 @@ async def async_main() -> None:
     conn: Connection | None = None
     url = os.environ["DATABASE_URL"]
     try:
-        conn: Connection = await asyncpg.connect(url)
+        conn = await asyncpg.connect(url)
         # Generate token, store the hash in the DB, and print it!
     finally:
         if conn:
