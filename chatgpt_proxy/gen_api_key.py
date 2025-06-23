@@ -83,7 +83,7 @@ async def async_main(
 @click.option("--audience", "-u", type=str, required=True)
 @click.option("--name", "-n", type=str, default=None)
 def main(
-        game_server_address: str,
+        game_server_address: ipaddress.IPv4Address,
         game_server_port: int,
         issuer: str,
         audience: str,
