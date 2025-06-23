@@ -63,7 +63,7 @@ struct Request
 
 struct GameChatMessage
 {
-    var PlayerController Sender;
+    var PlayerReplicationInfo Sender;
     var string Msg;
     var name Type;
 };
