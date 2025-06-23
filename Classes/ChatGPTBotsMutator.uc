@@ -425,6 +425,7 @@ final function ProcessRequestQueue()
     Sock.OnResolveFailed = RequestQueue[0].OnResolveFailed;
     Sock.OnConnectionTimeout = RequestQueue[0].OnConnectionTimeout;
     Sock.OnConnectError = RequestQueue[0].OnConnectError;
+    Sock.OnSendRequestHeaders = RequestQueue[0].OnSendRequestHeaders;
 
     RequestQueue.Remove(0, 1);
     if (RequestQueue.Length > 0)
