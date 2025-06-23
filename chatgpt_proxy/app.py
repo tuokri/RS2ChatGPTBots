@@ -30,7 +30,6 @@ import ipaddress
 import multiprocessing as mp
 import os
 import secrets
-from dataclasses import dataclass
 from enum import StrEnum
 from http import HTTPStatus
 from multiprocessing.synchronize import Event as EventType
@@ -41,9 +40,9 @@ import asyncpg
 import openai
 import sanic
 from sanic import Blueprint
-from sanic.request import Request
 from sanic.response import HTTPResponse
 
+from chatgpt_proxy.auth import auth
 from chatgpt_proxy.db import queries
 
 os.environ["LOGURU_AUTOINIT"] = "1"
@@ -58,12 +57,24 @@ class Context(SimpleNamespace):
 
 
 App: TypeAlias = sanic.Sanic[sanic.Config, Context]
+Request: TypeAlias = sanic.Request[App, Context]
 
-app: App = sanic.Sanic(__name__, ctx=Context())
+is_prod_env = "FLY_APP_NAME" in os.environ
+
+app: App = sanic.Sanic("ChatGPTProxy", ctx=Context())
 app.blueprint(api_v1)
 # We don't expect UScript side to send large requests.
 app.config.REQUEST_MAX_SIZE = 1500
 # app.config.OAS = False
+if is_prod_env:
+    app.config.SECRET = os.environ["SANIC_SECRET"]
+else:
+    app.config.SECRET = os.environ.get("SANIC_SECRET", "TEST_SECRET_123123")
+app.config.JWT_ISSUER = auth.jwt_issuer
+app.config.JWT_AUDIENCE = auth.jwt_audience
+
+# TODO: dynamic model selection?
+model = "gpt-4.1"
 
 # Rough API design:
 # - /message: to "fire" actual message request -> returns a chat message to send in game.
@@ -113,8 +124,6 @@ db_maintenance_interval = 30.0
 prompt_max_chat_messages = 15
 prompt_max_kills = 15
 
-is_prod_env = "FLY_APP_NAME" in os.environ
-
 game_id_length = 24
 
 
@@ -124,16 +133,23 @@ class SayType(StrEnum):
     TEAM = "1"
 
 
-@dataclass
-class MessageContext:
-    pass
-
-
 def get_remote_addr(request: Request) -> ipaddress.IPv4Address:
+    """Ignoring IPv6 since Steam game servers should always
+    be IPv4, and this API only expects requests from Steam GSs.
+    """
     if is_prod_env:
-        return request.headers["Fly-Client-IP"]
+        return ipaddress.IPv4Address(request.headers["Fly-Client-IP"])
     else:
         return ipaddress.IPv4Address(request.remote_addr)
+
+
+@api_v1.on_request
+async def api_v1_on_request(request: Request) -> HTTPResponse | None:
+    authenticated = await auth.check_token(request, request.ctx.pg_pool)
+    if not authenticated:
+        return sanic.text("Unauthorized.", status=HTTPStatus.UNAUTHORIZED)
+
+    return None
 
 
 @api_v1.post("/game")
@@ -141,8 +157,6 @@ async def post_game(
         request: Request,
         pg_pool: asyncpg.pool.Pool,
 ) -> HTTPResponse:
-    # TODO: check some sorta JWT here (the API key)!
-
     try:
         data = request.body.decode("utf-8")
     except UnicodeDecodeError:

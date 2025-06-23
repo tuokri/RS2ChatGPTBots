@@ -25,7 +25,8 @@ CREATE TABLE IF NOT EXISTS "game_server_api_key"
     created_at          TIMESTAMPTZ NOT NULL,
     api_key_hash        TEXT        NOT NULL, -- TODO: this design needs some thought.
     game_server_address INET        NOT NULL,
-    game_server_port    INTEGER     NOT NULL
+    game_server_port    INTEGER     NOT NULL,
+    name                TEXT
 );
 
 -- Server game session. A new one begins on map change.
