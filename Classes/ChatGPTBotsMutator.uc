@@ -152,13 +152,13 @@ function PostGameChatMessage_OnReturnCode(HttpSock Sender, int ReturnCode, strin
 
 function PostGameChatMessage_OnResolveFailed(HttpSock Sender, string Hostname)
 {
-    `cbgerror("resolve failed for hostname:" @ Hostname);
+    `cgberror("resolve failed for hostname:" @ Hostname);
     FinishRequest();
 }
 
 function PostGameChatMessage_OnConnectionTimeout(HttpSock Sender)
 {
-    `cbgerror(Sender @ "connection timed out");
+    `cgberror(Sender @ "connection timed out");
     FinishRequest();
 }
 
@@ -370,7 +370,7 @@ function PostGameChatMessage(PlayerReplicationInfo Sender, string Msg, name Type
     }
     else
     {
-        `cbgerror("unexpected Type:" @ Type);
+        `cgberror("unexpected Type:" @ Type);
     }
 
     Request.Url = Config.ApiUrl $ "game/" $ GameId $ "/chat_message";
