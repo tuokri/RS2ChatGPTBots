@@ -117,18 +117,19 @@ function PostGameMessage_OnComplete(HttpSock Sender)
     local string SayType;
     local string Msg;
 
-    `cgbdebug("ReturnData:" @ Sender.ReturnData);
+    `cgbdebug("ReturnData:" @ StringArrayToString(Sender.ReturnData));
 
-    // TODO: parse SayType\nMessage
+    SayType = Sender.ReturnData[0];
+    Msg = Sender.ReturnData[1];
 
     // TODO: is this the best way to send messages here?
     if (SayType == SAY_TEAM)
     {
-        CGBProxy.ServerTeamSay("TODO: message here!");
+        CGBProxy.ServerTeamSay(Msg);
     }
     else if (SayType == SAY_ALL)
     {
-        CGBProxy.ServerSay("TODO: what the dog?");
+        CGBProxy.ServerSay(Msg);
     }
     else
     {
@@ -350,7 +351,7 @@ function PostGameMessage(string Prompt)
 // TODO: should we send these in batches?
 function PostGameChatMessage(PlayerReplicationInfo Sender, string Msg, name Type)
 {
-    local Request Request;
+    local Request Req;
     local string PostData;
     local string MsgType;
 
@@ -373,17 +374,17 @@ function PostGameChatMessage(PlayerReplicationInfo Sender, string Msg, name Type
         `cgberror("unexpected Type:" @ Type);
     }
 
-    Request.Url = Config.ApiUrl $ "game/" $ GameId $ "/chat_message";
-    Request.Data = Sender.PlayerID $ "\n" $ MsgType $ "\n" $ Msg;
-    Request.Verb = Verb_Post;
-    Request.OnComplete = PostGameChatMessage_OnComplete;
-    Request.OnReturnCode = PostGameChatMessage_OnReturnCode;
-    Request.OnResolveFailed = PostGameChatMessage_OnResolveFailed;
-    Request.OnConnectionTimeout = PostGameChatMessage_OnConnectionTimeout;
-    Request.OnConnectError = PostGameChatMessage_OnConnectError;
-    Request.OnSendRequestHeaders = PostGameChatMessage_OnSendRequestHeaders;
+    Req.Url = Config.ApiUrl $ "game/" $ GameId $ "/chat_message";
+    Req.Data = Sender.PlayerID $ "\n" $ MsgType $ "\n" $ Msg;
+    Req.Verb = Verb_Post;
+    Req.OnComplete = PostGameChatMessage_OnComplete;
+    Req.OnReturnCode = PostGameChatMessage_OnReturnCode;
+    Req.OnResolveFailed = PostGameChatMessage_OnResolveFailed;
+    Req.OnConnectionTimeout = PostGameChatMessage_OnConnectionTimeout;
+    Req.OnConnectError = PostGameChatMessage_OnConnectError;
+    Req.OnSendRequestHeaders = PostGameChatMessage_OnSendRequestHeaders;
 
-    RequestQueue.AddItem(Request);
+    RequestQueue.AddItem(Req);
     if (!IsTimerActive(NameOf(ProcessRequestQueue)))
     {
         SetTimer(0.001, False, NameOf(ProcessRequestQueue));
@@ -486,6 +487,25 @@ function ScoreKill(Controller Killer, Controller Victim)
     }
 
     super.ScoreKill(Killer, Victim);
+}
+
+function string StringArrayToString(array<string> Strings)
+{
+    local int i;
+    local string Result;
+
+    Result = "[";
+    for (i = 0; i < Strings.Length; ++i)
+    {
+        Result $= Strings[i];
+        if (i < (Strings.Length - 1))
+        {
+            Result $= ",";
+        }
+    }
+    Result $= "]";
+
+    return Result;
 }
 
 DefaultProperties
