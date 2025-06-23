@@ -139,6 +139,10 @@ function PostGameMessage_OnComplete(HttpSock Sender)
     FinishRequest();
 }
 
+// ---------------------------------------------------------------------------
+// PostGameChatMessage delegates. --------------------------------------------
+// ---------------------------------------------------------------------------
+
 function PostGameChatMessage_OnComplete(HttpSock Sender)
 {
     FinishRequest();
@@ -170,6 +174,47 @@ function PostGameChatMessage_OnConnectError(HttpSock Sender)
 }
 
 function PostGameChatMessage_OnSendRequestHeaders(HttpSock Sender)
+{
+    ClearTimer(NameOf(CancelOpenLink));
+}
+
+// ---------------------------------------------------------------------------
+// PostGame delegates. -------------------------------------------------------
+// ---------------------------------------------------------------------------
+
+// TODO: PostGame should retry on failure up to X times!
+
+function PostGame_OnComplete(HttpSock Sender)
+{
+    FinishRequest();
+}
+
+function PostGame_OnReturnCode(HttpSock Sender, int ReturnCode, string ReturnMessage, string HttpVer)
+{
+    // NOTE: request may still be ongoing after this!
+    ClearTimer(NameOf(CancelOpenLink));
+    `cgbdebug("HTTP request:" @ ReturnCode @ ReturnMessage);
+}
+
+function PostGame_OnResolveFailed(HttpSock Sender, string Hostname)
+{
+    `cgberror("resolve failed for hostname:" @ Hostname);
+    FinishRequest();
+}
+
+function PostGame_OnConnectionTimeout(HttpSock Sender)
+{
+    `cgberror(Sender @ "connection timed out");
+    FinishRequest();
+}
+
+function PostGame_OnConnectError(HttpSock Sender)
+{
+    `cgberror(Sender @ "connection failed");
+    FinishRequest();
+}
+
+function PostGame_OnSendRequestHeaders(HttpSock Sender)
 {
     ClearTimer(NameOf(CancelOpenLink));
 }
