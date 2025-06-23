@@ -191,6 +191,16 @@ function PostGame_OnComplete(HttpSock Sender)
 
 function PostGame_OnReturnCode(HttpSock Sender, int ReturnCode, string ReturnMessage, string HttpVer)
 {
+    // TODO: gotta prevent "parallel" retries! Do we get here if any of the other error delegates are fired?
+    if (ReturnCode >= 400)
+    {
+        if (PostGameRetries < MAX_POST_GAME_RETRIES)
+        {
+            ++PostGameRetries;
+            PostGame();
+        }
+    }
+
     // NOTE: request may still be ongoing after this!
     ClearTimer(NameOf(CancelOpenLink));
     `cgbdebug("HTTP request:" @ ReturnCode @ ReturnMessage);
@@ -221,7 +231,7 @@ function PostGame_OnSendRequestHeaders(HttpSock Sender)
 
 function OverrideBroadcastHandler()
 {
-    // TODO: can this cause conflict with client and server?
+    // TODO: can this cause conflict between client and server?
     if (WorldInfo.NetMode != NM_DedicatedServer)
     {
         return;
@@ -362,7 +372,7 @@ function HTTPDelete(string Url, optional float Timeout = 2.0)
     SetCancelOpenLinkTimer(Timeout);
 }
 
-function PostGame(/* TODO: game data arguments here! */)
+function PostGame()
 {
     local string PostData;
 
