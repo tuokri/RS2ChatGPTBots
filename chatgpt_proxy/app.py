@@ -64,6 +64,7 @@ app: App = sanic.Sanic("ChatGPTProxy", ctx=Context())
 app.blueprint(api_v1)
 # We don't expect UScript side to send large requests.
 app.config.REQUEST_MAX_SIZE = 1500
+app.config.REQUEST_MAX_HEADER_SIZE = 1500
 # app.config.OAS = False
 if is_prod_env:
     app.config.SECRET = os.environ["SANIC_SECRET"]

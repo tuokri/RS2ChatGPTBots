@@ -110,7 +110,7 @@ async def check_token(request: Request, pg_pool: asyncpg.pool.Pool) -> bool:
             return False
 
         req_token_hash = hashlib.sha256(request.token.encode("utf-8")).digest()
-        db_api_key_hash = api_key["api_key_hash"]
+        db_api_key_hash: bytes = api_key["api_key_hash"]
         if not compare_digest(req_token_hash, db_api_key_hash):
             # TODO: maybe log this too?
             return False
