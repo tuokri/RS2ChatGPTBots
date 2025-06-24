@@ -22,7 +22,6 @@
 
 import hashlib
 import ipaddress
-import os
 from hmac import compare_digest
 
 import asyncpg.pool
@@ -34,35 +33,6 @@ from chatgpt_proxy.utils import get_remote_addr
 
 jwt_issuer = "ChatGPTProxy"
 jwt_audience = "ChatGPTProxy"
-
-
-async def generate_token(
-        secret: str | None = None,
-        issuer: str | None = None,
-        audience: str | None = None,
-        subject: str | None = None,
-        payload: dict | None = None,
-) -> str:
-    if secret is None:
-        secret = os.environ["SANIC_SECRET"]
-    if issuer is None:
-        issuer = jwt_issuer
-    if audience is None:
-        audience = jwt_audience
-    if subject is None:
-        subject = ""
-    if payload is None:
-        payload = {}
-
-    payload["sub"] = subject
-    payload["iss"] = issuer
-    payload["aud"] = audience
-
-    return jwt.encode(
-        key=secret,
-        algorithm="HS256",
-        payload=payload,
-    )
 
 
 async def check_token(request: Request, pg_pool: asyncpg.pool.Pool) -> bool:
@@ -116,19 +86,3 @@ async def check_token(request: Request, pg_pool: asyncpg.pool.Pool) -> bool:
             return False
 
     return True
-
-# def protected(wrapped):
-#     def decorator(f: Callable[[Request, Any, Any], Awaitable[HTTPResponse]]):
-#         @functools.wraps(f)
-#         async def decorated_function(request: Request, *args, **kwargs) -> HTTPResponse:
-#             is_authenticated = check_token(request)
-#
-#             if is_authenticated:
-#                 response = await f(request, *args, **kwargs)
-#                 return response
-#             else:
-#                 return sanic.text("Unauthorized.", HTTPStatus.UNAUTHORIZED)
-#
-#         return decorated_function
-#
-#     return decorator(wrapped)
