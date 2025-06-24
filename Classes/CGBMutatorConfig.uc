@@ -31,7 +31,19 @@ const DEFAULT_API_URL = "http://localhost:8080/api/v1/";
 
 var() int ConfigVersion;
 var() config string ApiUrl;
-var() private config string ApiKey;
+var private config string ApiKey;
+
+final function string GetApiKey()
+{
+    local WorldInfo WI;
+
+    WI = class'WorldInfo'.static.GetWorldInfo();
+    if (WI.NetMode == NM_DedicatedServer)
+    {
+        return ApiKey;
+    }
+    return "";
+}
 
 final function ValidateConfig()
 {

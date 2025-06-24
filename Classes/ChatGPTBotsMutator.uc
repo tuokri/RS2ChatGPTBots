@@ -332,7 +332,7 @@ function HTTPGet(string Url, optional float Timeout = 2.0)
     }
 
     `cgblog("sending HTTP GET request to: " $ Url);
-    Sock.AddHeader("Authorization", "Bearer " $ Config.ApiKey);
+    Sock.AddHeader("Authorization", "Bearer " $ Config.GetApiKey());
     Sock.Get(Url);
     SetCancelOpenLinkTimer(Timeout);
 }
@@ -345,7 +345,7 @@ function HTTPPost(string Url, optional string PostData, optional float Timeout =
     }
 
     `cgblog("sending HTTP POST request to: " $ Url);
-    Sock.AddHeader("Authorization", "Bearer " $ Config.ApiKey);
+    Sock.AddHeader("Authorization", "Bearer " $ Config.GetApiKey());
     Sock.Post(Url, PostData);
     SetCancelOpenLinkTimer(Timeout);
 }
@@ -358,7 +358,7 @@ function HTTPPut(string Url, optional string PutData, optional float Timeout = 2
     }
 
     `cgblog("sending HTTP PUT request to: " $ Url);
-    Sock.AddHeader("Authorization", "Bearer " $ Config.ApiKey);
+    Sock.AddHeader("Authorization", "Bearer " $ Config.GetApiKey());
     Sock.Put(Url, PutData);
     SetCancelOpenLinkTimer(Timeout);
 }
@@ -371,7 +371,7 @@ function HTTPDelete(string Url, optional float Timeout = 2.0)
     }
 
     `cgblog("sending HTTP DELETE request to: " $ Url);
-    Sock.AddHeader("Authorization", "Bearer " $ Config.ApiKey);
+    Sock.AddHeader("Authorization", "Bearer " $ Config.GetApiKey());
     Sock.Delete(Url);
     SetCancelOpenLinkTimer(Timeout);
 }
