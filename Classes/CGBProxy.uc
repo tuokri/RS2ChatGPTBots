@@ -54,6 +54,40 @@ function CheckWorkshopSubscriptions()
 {
 }
 
+function UpdateSubscribedApps()
+{
+}
+
+function OnSubscribedFilesEnumerated(int FileCount)
+{
+}
+
+function OnGetSubscribedFileDetailsCompleted(int Count)
+{
+}
+
+simulated function ReceivedGameClass(class<GameInfo> GameClass)
+{
+    super(PlayerController).ReceivedGameClass(GameClass);
+}
+
+event NotifyViewTargetChanged()
+{
+}
+
+function SaveServerToHistory()
+{
+}
+
+event Possess(Pawn aPawn, bool bVehicleTransition)
+{
+    super(PlayerController).Possess(aPawn, bVehicleTransition);
+}
+
+reliable server function ChangeVivoxChannelsState(ROPlayerReplicationInfo OtherPlayerROPRI, ROPlayerController LocalPlayerROPC)
+{
+}
+
 delegate ReceiveMessage(PlayerReplicationInfo Sender, string Msg, name Type);
 
 function AddReceiver(delegate<ReceiveMessage> ReceiveMessageDelegate)
@@ -107,10 +141,6 @@ reliable client event TeamMessage(
 }
 
 event InitializeStats()
-{
-}
-
-simulated function ReceivedGameClass(class<GameInfo> GameClass)
 {
 }
 
