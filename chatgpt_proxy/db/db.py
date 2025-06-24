@@ -19,3 +19,21 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
+
+from contextlib import asynccontextmanager
+from typing import AsyncGenerator
+from typing import cast
+
+from asyncpg import Pool
+from asyncpg.pool import PoolAcquireContext
+
+_default_acquire_timeout = 5.0
+
+
+@asynccontextmanager
+async def pool_acquire(
+        pool: Pool,
+        timeout: float = _default_acquire_timeout,
+) -> AsyncGenerator[PoolAcquireContext]:
+    async with pool.acquire(timeout=timeout) as conn:
+        yield cast(PoolAcquireContext, conn)

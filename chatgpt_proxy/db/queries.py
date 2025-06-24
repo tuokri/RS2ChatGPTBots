@@ -142,3 +142,19 @@ async def select_game_server_api_key(
         game_server_port,
         timeout=timeout,
     )
+
+
+async def game_exists(
+        conn: Connection,
+        game_id: str,
+        timeout: float | None = _default_conn_timeout,
+) -> bool:
+    return await conn.fetchval(
+        """
+        SELECT 1
+        FROM "game"
+        WHERE id = $1
+        """,
+        game_id,
+        timeout=timeout,
+    ) is not None

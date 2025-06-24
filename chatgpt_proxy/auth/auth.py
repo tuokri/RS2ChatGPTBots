@@ -27,8 +27,8 @@ from hmac import compare_digest
 
 import asyncpg.pool
 import jwt
-from sanic import Request
 
+from chatgpt_proxy import Request
 from chatgpt_proxy.db import queries
 from chatgpt_proxy.utils import get_remote_addr
 

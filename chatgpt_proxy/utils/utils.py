@@ -23,9 +23,9 @@
 import ipaddress
 import os
 
-from sanic import Request
+from chatgpt_proxy import Request
 
-is_prod_env = "FLY_APP_NAME" in os.environ
+is_prod_env: bool = "FLY_APP_NAME" in os.environ
 
 
 def get_remote_addr(request: Request) -> ipaddress.IPv4Address:

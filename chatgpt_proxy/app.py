@@ -42,6 +42,7 @@ from sanic import Blueprint
 from sanic.response import HTTPResponse
 
 from chatgpt_proxy.auth import auth
+from chatgpt_proxy.db import pool_acquire
 from chatgpt_proxy.db import queries
 from chatgpt_proxy.utils import get_remote_addr
 from chatgpt_proxy.utils import is_prod_env
@@ -167,7 +168,7 @@ async def post_game(
     game_id = secrets.token_hex(game_id_length)
     addr = get_remote_addr(request)
 
-    async with pg_pool.acquire() as conn:
+    async with pool_acquire(pg_pool) as conn:
         async with conn.transaction():
             await queries.insert_game(
                 conn=conn,
@@ -199,7 +200,7 @@ async def put_game(
     # it's marked as finished by the game server.
     # TODO: make this support other fields too if needed.
 
-    async with pg_pool.acquire() as conn:
+    async with pool_acquire(pg_pool) as conn:
         game = await queries.select_game(
             conn=conn,
             game_id=game_id,
@@ -215,7 +216,7 @@ async def put_game(
         logger.debug("error parsing game data", exc_info=e)
         return HTTPResponse(HTTPStatus.BAD_REQUEST)
 
-    async with pg_pool.acquire() as conn:
+    async with pool_acquire(pg_pool) as conn:
         async with conn.transaction():
             await queries.update_game(
                 conn=conn,
@@ -276,13 +277,8 @@ async def put_game_objective_state(
     if len(request.body) > 2000:
         return sanic.HTTPResponse(status=HTTPStatus.BAD_REQUEST)
 
-    # TODO: add game_exists() func!
-    async with pg_pool.acquire() as conn:
-        game = await queries.select_game(
-            conn=conn,
-            game_id=game_id,
-        )
-        if not game:
+    async with pool_acquire(pg_pool) as conn:
+        if not await queries.game_exists(conn, game_id):
             return HTTPResponse(status=HTTPStatus.NOT_FOUND)
 
     # TODO: maybe do proper relative DB design for this if needed?
@@ -298,7 +294,7 @@ async def put_game_objective_state(
         logger.debug("error parsing objectives data", exc_info=e)
         return HTTPResponse(status=HTTPStatus.BAD_REQUEST)
 
-    async with pg_pool.acquire() as conn:
+    async with pool_acquire(pg_pool) as conn:
         async with conn.transaction():
             await queries.upsert_game_objective_state(
                 conn=conn,
@@ -340,7 +336,7 @@ async def db_maintenance(stop_event: EventType) -> None:
         pool = await asyncpg.create_pool(dsn=db_url, min_size=1, max_size=1)
 
         while not stop_event.wait(db_maintenance_interval):
-            async with pool.acquire(timeout=5.0) as conn:
+            async with pool_acquire(pool) as conn:
                 async with conn.transaction():
                     result = await queries.delete_completed_games(conn, game_expiration)
                     logger.info(result)
