@@ -302,6 +302,45 @@ function PutGame_OnSendRequestHeaders(HttpSock Sender)
     ClearTimer(NameOf(CancelOpenLink));
 }
 
+// ---------------------------------------------------------------------------
+// PostGameKill delegates. ---------------------------------------------------
+// ---------------------------------------------------------------------------
+
+function PostGameKill_OnComplete(HttpSock Sender)
+{
+    FinishRequest();
+}
+
+function PostGameKill_OnReturnCode(HttpSock Sender, int ReturnCode, string ReturnMessage, string HttpVer)
+{
+    // NOTE: request may still be ongoing after this!
+    ClearTimer(NameOf(CancelOpenLink));
+    `cgbdebug("HTTP request:" @ ReturnCode @ ReturnMessage);
+}
+
+function PostGameKill_OnResolveFailed(HttpSock Sender, string Hostname)
+{
+    `cgberror("resolve failed for hostname:" @ Hostname);
+    FinishRequest();
+}
+
+function PostGameKill_OnConnectionTimeout(HttpSock Sender)
+{
+    `cgberror(Sender @ "connection timed out");
+    FinishRequest();
+}
+
+function PostGameKill_OnConnectError(HttpSock Sender)
+{
+    `cgberror(Sender @ "connection failed");
+    FinishRequest();
+}
+
+function PostGameKill_OnSendRequestHeaders(HttpSock Sender)
+{
+    ClearTimer(NameOf(CancelOpenLink));
+}
+
 function OverrideBroadcastHandler()
 {
     // TODO: can this cause conflict between client and server?
