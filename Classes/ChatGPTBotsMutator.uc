@@ -111,6 +111,10 @@ function FinishRequest()
     ClearTimer(NameOf(CancelOpenLink));
 }
 
+// ---------------------------------------------------------------------------
+// PostGameMessage delegates. ------------------------------------------------
+// ---------------------------------------------------------------------------
+
 // Send the response from the LLM to in-game chat.
 function PostGameMessage_OnComplete(HttpSock Sender)
 {
@@ -137,6 +141,36 @@ function PostGameMessage_OnComplete(HttpSock Sender)
     }
 
     FinishRequest();
+}
+
+function PostGameMessage_OnReturnCode(HttpSock Sender, int ReturnCode, string ReturnMessage, string HttpVer)
+{
+    // NOTE: request may still be ongoing after this!
+    ClearTimer(NameOf(CancelOpenLink));
+    `cgbdebug("HTTP request:" @ ReturnCode @ ReturnMessage);
+}
+
+function PostGameMessage_OnResolveFailed(HttpSock Sender, string Hostname)
+{
+    `cgberror("resolve failed for hostname:" @ Hostname);
+    FinishRequest();
+}
+
+function PostGameMessage_OnConnectionTimeout(HttpSock Sender)
+{
+    `cgberror(Sender @ "connection timed out");
+    FinishRequest();
+}
+
+function PostGameMessage_OnConnectError(HttpSock Sender)
+{
+    `cgberror(Sender @ "connection failed");
+    FinishRequest();
+}
+
+function PostGameMessage_OnSendRequestHeaders(HttpSock Sender)
+{
+    ClearTimer(NameOf(CancelOpenLink));
 }
 
 // ---------------------------------------------------------------------------
@@ -225,6 +259,45 @@ function PostGame_OnConnectError(HttpSock Sender)
 }
 
 function PostGame_OnSendRequestHeaders(HttpSock Sender)
+{
+    ClearTimer(NameOf(CancelOpenLink));
+}
+
+// ---------------------------------------------------------------------------
+// PutGame delegates. --------------------------------------------------------
+// ---------------------------------------------------------------------------
+
+function PutGame_OnComplete(HttpSock Sender)
+{
+    FinishRequest();
+}
+
+function PutGame_OnReturnCode(HttpSock Sender, int ReturnCode, string ReturnMessage, string HttpVer)
+{
+    // NOTE: request may still be ongoing after this!
+    ClearTimer(NameOf(CancelOpenLink));
+    `cgbdebug("HTTP request:" @ ReturnCode @ ReturnMessage);
+}
+
+function PutGame_OnResolveFailed(HttpSock Sender, string Hostname)
+{
+    `cgberror("resolve failed for hostname:" @ Hostname);
+    FinishRequest();
+}
+
+function PutGame_OnConnectionTimeout(HttpSock Sender)
+{
+    `cgberror(Sender @ "connection timed out");
+    FinishRequest();
+}
+
+function PutGame_OnConnectError(HttpSock Sender)
+{
+    `cgberror(Sender @ "connection failed");
+    FinishRequest();
+}
+
+function PutGame_OnSendRequestHeaders(HttpSock Sender)
 {
     ClearTimer(NameOf(CancelOpenLink));
 }
@@ -379,7 +452,10 @@ function HTTPDelete(string Url, optional float Timeout = 2.0)
 function PostGame()
 {
     local string PostData;
+    local Request Req;
 
+    // Game start time.
+    PostData = string(WorldInfo.RealTimeSeconds);
     // TODO: NEED TO RETRY THIS IF IT FAILS FOR WHATEVER REASON!
 
     // TODO: queue request here.
@@ -387,7 +463,46 @@ function PostGame()
     // TODO: in the OnCompleted handler of PostGame, we need to send
     //       the initial list of players and set bInitialPlayersSent = True!
 
-    // HTTPPost(Config.ApiUrl $ "game", PostData);
+    Req.Url = Config.ApiUrl $ "game";
+    Req.Data = PostData;
+    Req.Verb = Verb_Post;
+    Req.OnComplete = PostGame_OnComplete;
+    Req.OnReturnCode = PostGame_OnReturnCode;
+    Req.OnResolveFailed = PostGame_OnResolveFailed;
+    Req.OnConnectionTimeout = PostGame_OnConnectionTimeout;
+    Req.OnConnectError = PostGame_OnConnectError;
+    Req.OnSendRequestHeaders = PostGame_OnSendRequestHeaders;
+
+    RequestQueue.AddItem(Req);
+    if (!IsTimerActive(NameOf(ProcessRequestQueue)))
+    {
+        SetTimer(0.001, False, NameOf(ProcessRequestQueue));
+    }
+}
+
+function PutGame()
+{
+    local string PutData;
+    local Request Req;
+
+    // Game end time.
+    PutData = string(WorldInfo.RealTimeSeconds);
+
+    Req.Url = Config.ApiUrl $ "game";
+    Req.Data = PutData;
+    Req.Verb = Verb_Put;
+    Req.OnComplete = PutGame_OnComplete;
+    Req.OnReturnCode = PutGame_OnReturnCode;
+    Req.OnResolveFailed = PutGame_OnResolveFailed;
+    Req.OnConnectionTimeout = PutGame_OnConnectionTimeout;
+    Req.OnConnectError = PutGame_OnConnectError;
+    Req.OnSendRequestHeaders = PutGame_OnSendRequestHeaders;
+
+    RequestQueue.AddItem(Req);
+    if (!IsTimerActive(NameOf(ProcessRequestQueue)))
+    {
+        SetTimer(0.001, False, NameOf(ProcessRequestQueue));
+    }
 }
 
 // Requests an LLM response from the server, taking current game state
