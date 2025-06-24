@@ -27,7 +27,8 @@ from hmac import compare_digest
 import asyncpg.pool
 import jwt
 
-from chatgpt_proxy import Request
+from chatgpt_proxy.common import Request
+from chatgpt_proxy.db import pool_acquire
 from chatgpt_proxy.db import queries
 from chatgpt_proxy.utils import get_remote_addr
 
@@ -70,7 +71,7 @@ async def check_token(request: Request, pg_pool: asyncpg.pool.Pool) -> bool:
         return False
 
     # TODO: we should cache this in memory (LRU) or diskcache.
-    async with pg_pool.acquire() as conn:
+    async with pool_acquire(pg_pool) as conn:
         api_key = await queries.select_game_server_api_key(
             conn=conn,
             game_server_address=addr,

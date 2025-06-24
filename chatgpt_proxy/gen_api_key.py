@@ -73,7 +73,7 @@ async def async_main(
             game_server_address,
             game_server_port,
             name,
-            timeout=10.0
+            timeout=10.0,
         )
         print(token)
     finally:

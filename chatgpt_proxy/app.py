@@ -32,8 +32,6 @@ import secrets
 from enum import StrEnum
 from http import HTTPStatus
 from multiprocessing.synchronize import Event as EventType
-from types import SimpleNamespace
-from typing import TypeAlias
 
 import asyncpg
 import openai
@@ -42,6 +40,9 @@ from sanic import Blueprint
 from sanic.response import HTTPResponse
 
 from chatgpt_proxy.auth import auth
+from chatgpt_proxy.common import App
+from chatgpt_proxy.common import Context
+from chatgpt_proxy.common import Request
 from chatgpt_proxy.db import pool_acquire
 from chatgpt_proxy.db import queries
 from chatgpt_proxy.utils import get_remote_addr
@@ -51,15 +52,6 @@ os.environ["LOGURU_AUTOINIT"] = "1"
 from loguru import logger
 
 api_v1 = Blueprint("api", version_prefix="/api/v", version=1)
-
-
-class Context(SimpleNamespace):
-    client: openai.AsyncOpenAI | None
-    pg_pool: asyncpg.pool.Pool | None
-
-
-App: TypeAlias = sanic.Sanic[sanic.Config, Context]
-Request: TypeAlias = sanic.Request[App, Context]
 
 app: App = sanic.Sanic("ChatGPTProxy", ctx=Context())
 app.blueprint(api_v1)
@@ -150,15 +142,8 @@ async def post_game(
         pg_pool: asyncpg.pool.Pool,
 ) -> HTTPResponse:
     try:
-        data = request.body.decode("utf-8")
-    except UnicodeDecodeError:
-        return HTTPResponse(status=HTTPStatus.BAD_REQUEST)
-
-    if not data:
-        return HTTPResponse(status=HTTPStatus.BAD_REQUEST)
-
-    try:
         # level\nserver_game_port
+        data = request.body.decode("utf-8")
         level, port = data.split("\n")
         game_port = int(port)
     except Exception as e:
@@ -181,7 +166,31 @@ async def post_game(
                 stop_time=None,
             )
 
-    return sanic.text(game_id)
+    # TODO: we need to do an OpenAI query here. We send initial
+    #   game state to the LLM, and ask it for a short greeting message.
+    async with conn.transaction():
+        prompt = "TODO"
+        query_id = await queries.insert_openai_query(
+            conn=conn,
+            time=datetime.datetime.now(tz=datetime.timezone.utc),
+            game_server_address=addr,
+            game_server_port=game_port,
+            request_length=len(prompt),
+            response_length=None,
+        )
+        # await client.responses.create(
+        #     previous_response_id=previous_response_id,
+        # )
+        resp_len = 0  # TODO
+        await queries.update_openai_query(
+            conn=conn,
+            query_id=query_id,
+            response_length=resp_len,
+        )
+
+    greeting = ""
+
+    return sanic.text(f"game_id\n{greeting}")
 
 
 @api_v1.put("/game/<game_id>")
@@ -195,8 +204,6 @@ async def put_game(
     due to the fact that the existing UScript HTTP client lacks
     PATCH support.
     """
-    # TODO: auth + validation.
-
     # Assuming the only time we'll get a PUT on /game is when
     # it's marked as finished by the game server.
     # TODO: make this support other fields too if needed.
@@ -232,14 +239,44 @@ async def put_game(
 async def post_game_message(
         request: Request,
         game_id: str,
+        pg_pool: asyncpg.pool.Pool,
         client: openai.AsyncOpenAI,
 ) -> HTTPResponse:
     # Validation: valid JWT, correct IP, correct port, request actually
     # comes from the correct IP. These should match the game_id!
 
-    # await client.responses.create(
-    #     previous_response_id="",
-    # )
+    async with pool_acquire(pg_pool) as conn:
+        game = await queries.select_game(conn, game_id)
+        if not game:
+            return HTTPResponse(status=HTTPStatus.NOT_FOUND)
+
+        previous_response_id: str = game["openai_previous_response_id"]
+        level: str = game["level"]
+
+        # TODO: we need to keep track of which kills and messages have
+        #       already been sent to ChatGPT? Just use send_time and
+        #       kill_time variables?
+
+        prompt = request.body.decode("utf-8")
+
+        async with conn.transaction():
+            query_id = await queries.insert_openai_query(
+                conn=conn,
+                time=datetime.datetime.now(tz=datetime.timezone.utc),
+                game_server_address=game["game_server_address"],
+                game_server_port=game["game_server_port"],
+                request_length=len(prompt),
+                response_length=None,
+            )
+            # await client.responses.create(
+            #     previous_response_id=previous_response_id,
+            # )
+            resp_len = 0  # TODO
+            await queries.update_openai_query(
+                conn=conn,
+                query_id=query_id,
+                response_length=resp_len,
+            )
 
     return sanic.text("TODO: this is the message to post in game!")
 
@@ -254,6 +291,12 @@ async def post_game_kill(
         if not await queries.game_exists(conn, game_id):
             return HTTPResponse(status=HTTPStatus.NOT_FOUND)
 
+    try:
+        parts = request.body.decode("utf-8").split("\n")
+    except Exception as TODO:
+        # TODO: log it?
+        return sanic.HTTPResponse(HTTPStatus.BAD_REQUEST)
+
     return sanic.HTTPResponse(status=HTTPStatus.OK)
 
 
@@ -267,6 +310,12 @@ async def post_game_player(
         if not await queries.game_exists(conn, game_id):
             return HTTPResponse(status=HTTPStatus.NOT_FOUND)
 
+    try:
+        parts = request.body.decode("utf-8").split("\n")
+    except Exception as TODO:
+        # TODO: log it?
+        return sanic.HTTPResponse(HTTPStatus.BAD_REQUEST)
+
     return sanic.HTTPResponse(status=HTTPStatus.OK)
 
 
@@ -279,6 +328,12 @@ async def post_game_chat_message(
     async with pool_acquire(pg_pool) as conn:
         if not await queries.game_exists(conn, game_id):
             return HTTPResponse(status=HTTPStatus.NOT_FOUND)
+
+    try:
+        parts = request.body.decode("utf-8").split("\n")
+    except Exception as TODO:
+        # TODO: log it?
+        return sanic.HTTPResponse(HTTPStatus.BAD_REQUEST)
 
     return sanic.HTTPResponse(status=HTTPStatus.OK)
 
