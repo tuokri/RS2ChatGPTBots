@@ -41,11 +41,13 @@ async def async_main(
         secret: str,
         issuer: str,
         audience: str,
+        expires_at: datetime.datetime,
         name: str | None = None,
 ) -> None:
     conn: Connection | None = None
     url = os.environ["DATABASE_URL"]
     try:
+        iat = datetime.datetime.now(tz=datetime.timezone.utc)
         token = jwt.encode(
             key=secret,
             algorithm="HS256",
@@ -53,6 +55,8 @@ async def async_main(
                 "iss": issuer,
                 "aud": audience,
                 "sub": f"{game_server_address}:{game_server_port}",
+                "exp": int(expires_at.timestamp()),
+                "iat": int(iat.timestamp()),
             },
         )
         token_sha256 = hashlib.sha256(token.encode("utf-8")).digest()
@@ -60,10 +64,11 @@ async def async_main(
         await conn.execute(
             """
             INSERT INTO "game_server_api_key"
-                (created_at, api_key_hash, game_server_address, game_server_port, name)
-            VALUES ($1, $2, $3, $4, $5)
+            (created_at, expires_at, api_key_hash, game_server_address, game_server_port, name)
+            VALUES ($1, $2, $3, $4, $5, $6)
             """,
-            datetime.datetime.now(tz=datetime.timezone.utc),
+            iat,
+            expires_at,
             token_sha256,
             game_server_address,
             game_server_port,
@@ -81,12 +86,14 @@ async def async_main(
 @click.option("--game-server-port", "-p", type=int, required=True)
 @click.option("--issuer", "-i", type=str, required=True)
 @click.option("--audience", "-u", type=str, required=True)
+@click.option("--expires-at", "-e", type=float, required=True)
 @click.option("--name", "-n", type=str, default=None)
 def main(
         game_server_address: ipaddress.IPv4Address,
         game_server_port: int,
         issuer: str,
         audience: str,
+        expires_at: float,
         name: str | None,
 ) -> None:
     secret = os.environ["SANIC_SECRET"]
@@ -96,6 +103,7 @@ def main(
         secret=secret,
         issuer=issuer,
         audience=audience,
+        expires_at=datetime.datetime.fromtimestamp(expires_at),
         name=name,
     ))
 

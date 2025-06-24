@@ -23,6 +23,7 @@
 CREATE TABLE IF NOT EXISTS "game_server_api_key"
 (
     created_at          TIMESTAMPTZ NOT NULL,
+    expires_at          TIMESTAMPTZ NOT NULL,
     api_key_hash        BYTEA       NOT NULL, -- TODO: this design needs some thought.
     game_server_address INET        NOT NULL,
     game_server_port    INTEGER     NOT NULL,
