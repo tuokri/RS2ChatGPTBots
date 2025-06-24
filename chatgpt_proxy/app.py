@@ -120,6 +120,7 @@ Since the beginning of the game, the following additional events have happened:
 # We prune all matches that have ended or are older
 # than 5 hours during database maintenance.
 game_expiration = datetime.timedelta(hours=5)
+api_key_deletion_leeway = datetime.timedelta(minutes=5)
 db_maintenance_interval = 30.0
 
 prompt_max_chat_messages = 15
@@ -354,7 +355,11 @@ async def db_maintenance(stop_event: EventType) -> None:
             async with pool_acquire(pool) as conn:
                 async with conn.transaction():
                     result = await queries.delete_completed_games(conn, game_expiration)
-                    logger.info(result)
+                    logger.info("delete_completed_games: {}", result)
+
+                async with conn.transaction():
+                    result = await queries.delete_old_api_keys(conn, leeway=api_key_deletion_leeway)
+                    logger.info("delete_old_api_keys: {}", result)
 
     except KeyboardInterrupt:
         if pool:

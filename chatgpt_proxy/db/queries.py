@@ -153,8 +153,24 @@ async def game_exists(
         """
         SELECT 1
         FROM "game"
-        WHERE id = $1
+        WHERE id = $1;
         """,
         game_id,
         timeout=timeout,
     ) is not None
+
+
+async def delete_old_api_keys(
+        conn: Connection,
+        leeway: datetime.timedelta,
+        timeout: float | None = _default_conn_timeout,
+) -> str:
+    return await conn.execute(
+        """
+        DELETE
+        FROM "game_server_api_key"
+        WHERE NOW() > (expires_at + $1);
+        """,
+        leeway,
+        timeout=timeout,
+    )
