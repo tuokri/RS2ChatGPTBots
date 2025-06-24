@@ -247,7 +247,12 @@ async def post_game_message(
 async def post_game_kill(
         request: Request,
         game_id: str,
+        pg_pool: asyncpg.pool.Pool,
 ) -> HTTPResponse:
+    async with pool_acquire(pg_pool) as conn:
+        if not await queries.game_exists(conn, game_id):
+            return HTTPResponse(status=HTTPStatus.NOT_FOUND)
+
     return sanic.HTTPResponse(status=HTTPStatus.OK)
 
 
@@ -255,7 +260,12 @@ async def post_game_kill(
 async def post_game_player(
         request: Request,
         game_id: str,
+        pg_pool: asyncpg.pool.Pool,
 ) -> HTTPResponse:
+    async with pool_acquire(pg_pool) as conn:
+        if not await queries.game_exists(conn, game_id):
+            return HTTPResponse(status=HTTPStatus.NOT_FOUND)
+
     return sanic.HTTPResponse(status=HTTPStatus.OK)
 
 
@@ -263,7 +273,12 @@ async def post_game_player(
 async def post_game_chat_message(
         request: Request,
         game_id: str,
+        pg_pool: asyncpg.pool.Pool,
 ) -> HTTPResponse:
+    async with pool_acquire(pg_pool) as conn:
+        if not await queries.game_exists(conn, game_id):
+            return HTTPResponse(status=HTTPStatus.NOT_FOUND)
+
     return sanic.HTTPResponse(status=HTTPStatus.OK)
 
 
