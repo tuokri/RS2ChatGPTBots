@@ -38,6 +38,22 @@ simulated event PostBeginPlay()
     `cgblog(self @ "initialized");
 }
 
+function bool OutsideMapWithSteam()
+{
+}
+
+event OnSteamOverlayClosed()
+{
+}
+
+event UpdateGAMWidget()
+{
+}
+
+function CheckWorkshopSubscriptions()
+{
+}
+
 delegate ReceiveMessage(PlayerReplicationInfo Sender, string Msg, name Type);
 
 function AddReceiver(delegate<ReceiveMessage> ReceiveMessageDelegate)
