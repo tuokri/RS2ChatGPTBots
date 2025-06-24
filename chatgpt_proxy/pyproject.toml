@@ -22,3 +22,11 @@ dev = [
     "respx>=0.22.0",
     "ruff>=0.12.0",
 ]
+
+# https://github.com/MagicStack/asyncpg/issues/387
+# https://github.com/MagicStack/asyncpg/pull/577
+[[tool.mypy.overrides]]
+module = [
+    "asyncpg.*",
+]
+ignore_missing_imports = true
