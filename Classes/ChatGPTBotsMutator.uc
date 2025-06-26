@@ -68,6 +68,12 @@ struct GameChatMessage
     var name Type;
 };
 
+struct KeyValuePair_IntInt
+{
+    var int Key;
+    var int Value;
+};
+
 var CGBProxy CGBProxy;
 var HttpSock Sock;
 var CGBMutatorConfig Config;
@@ -83,6 +89,9 @@ var float FirstCheckTime;
 const MAX_GAME_WAIT_TIME = 30.0;
 
 var string GameId;
+
+// Last known team of a player ID.
+var array<KeyValuePair_IntInt> PlayerIdToTeam;
 
 function CreateHTTPClient()
 {
@@ -216,51 +225,114 @@ function PostGameChatMessage_OnSendRequestHeaders(HttpSock Sender)
 // PostGame delegates. -------------------------------------------------------
 // ---------------------------------------------------------------------------
 
-// TODO: PostGame should retry on failure up to X times!
-
 function PostGame_OnComplete(HttpSock Sender)
 {
+    local string Greeting;
+    local int Idx;
+    local int i;
+    local Controller Controller;
+
+    if (Sender.LastStatus == 201)
+    {
+        GameId = Sender.ReturnData[0];
+        `cgbdebug("received GameId:" @ GameId);
+
+        Greeting = Sender.ReturnData[1]; // TODO: use this.
+    }
+
+    // This array should be empty when we get here, always, but
+    // clear defensively just in case.
+    PlayerIdToTeam.Length = 0;
+    i = 0;
+
+    // Iterate GRI PriArray, send initial player list, set cached PlayerIdToTeam array.
+    for(Idx = 0; Idx < WorldInfo.Game.GameReplicationInfo.PRIArray.Length; ++Idx)
+    {
+        Controller = Controller(WorldInfo.Game.GameReplicationInfo.PRIArray[Idx].Owner);
+        if (Controller != None)
+        {
+            PutGamePlayer(Controller);
+        }
+        else
+        {
+            `cgbwarn("invalid controller for PRI:" @ WorldInfo.Game.GameReplicationInfo.PRIArray[Idx]);
+        }
+
+        PlayerIdToTeam[i].Key = WorldInfo.Game.GameReplicationInfo.PRIArray[Idx].PlayerID;
+        PlayerIdToTeam[i].Value = WorldInfo.Game.GameReplicationInfo.PRIArray[Idx].Team.TeamIndex;
+        ++i;
+    }
+
     FinishRequest();
+    FlushGameChatMessageQueue();
 }
 
 function PostGame_OnReturnCode(HttpSock Sender, int ReturnCode, string ReturnMessage, string HttpVer)
 {
+    `cgbdebug("HTTP request:" @ ReturnCode @ ReturnMessage @ StringArrayToString(Sender.ReturnData));
+
     // TODO: gotta prevent "parallel" retries! Do we get here if any of the other error delegates are fired?
     if (ReturnCode >= 400)
     {
-        if (PostGameRetries < MAX_POST_GAME_RETRIES)
-        {
-            ++PostGameRetries;
-            PostGame();
-        }
+        FinishRequest();
+        RetryPostGame();
+        return;
     }
 
     // NOTE: request may still be ongoing after this!
     ClearTimer(NameOf(CancelOpenLink));
-    `cgbdebug("HTTP request:" @ ReturnCode @ ReturnMessage);
 }
 
 function PostGame_OnResolveFailed(HttpSock Sender, string Hostname)
 {
     `cgberror("resolve failed for hostname:" @ Hostname);
     FinishRequest();
+    RetryPostGame();
 }
 
 function PostGame_OnConnectionTimeout(HttpSock Sender)
 {
     `cgberror(Sender @ "connection timed out");
     FinishRequest();
+    RetryPostGame();
 }
 
 function PostGame_OnConnectError(HttpSock Sender)
 {
     `cgberror(Sender @ "connection failed");
     FinishRequest();
+    RetryPostGame();
 }
 
 function PostGame_OnSendRequestHeaders(HttpSock Sender)
 {
     ClearTimer(NameOf(CancelOpenLink));
+}
+
+function RetryPostGame(optional int ReturnCode = -1, optional string ReturnMessage)
+{
+    if (PostGameRetries < MAX_POST_GAME_RETRIES)
+    {
+        `cgblog(
+            "PostGame failed with ReturnCode:"
+            @ ReturnCode @ ", message:" @ ReturnMessage
+            @ ", retrying, attempt:" @ PostGameRetries
+            @ "of" @ MAX_POST_GAME_RETRIES
+        );
+        ++PostGameRetries;
+        PostGame();
+    }
+    else
+    {
+        `cgbwarn("max PostGame retries exceeded, features not available for this game!");
+        Sock.Destroy();
+        Sock = None;
+        CGBProxy.Destroy();
+        CGBProxy = None;
+        RequestQueue.Length = 0;
+        GameChatMessageQueue.Length = 0;
+        PlayerIdToTeam.Length = 0;
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -341,6 +413,45 @@ function PostGameKill_OnSendRequestHeaders(HttpSock Sender)
     ClearTimer(NameOf(CancelOpenLink));
 }
 
+// ---------------------------------------------------------------------------
+// PutGamePlayer delegates. --------------------------------------------------
+// ---------------------------------------------------------------------------
+
+function PutGamePlayer_OnComplete(HttpSock Sender)
+{
+    FinishRequest();
+}
+
+function PutGamePlayer_OnReturnCode(HttpSock Sender, int ReturnCode, string ReturnMessage, string HttpVer)
+{
+    // NOTE: request may still be ongoing after this!
+    ClearTimer(NameOf(CancelOpenLink));
+    `cgbdebug("HTTP request:" @ ReturnCode @ ReturnMessage);
+}
+
+function PutGamePlayer_OnResolveFailed(HttpSock Sender, string Hostname)
+{
+    `cgberror("resolve failed for hostname:" @ Hostname);
+    FinishRequest();
+}
+
+function PutGamePlayer_OnConnectionTimeout(HttpSock Sender)
+{
+    `cgberror(Sender @ "connection timed out");
+    FinishRequest();
+}
+
+function PutGamePlayer_OnConnectError(HttpSock Sender)
+{
+    `cgberror(Sender @ "connection failed");
+    FinishRequest();
+}
+
+function PutGamePlayer_OnSendRequestHeaders(HttpSock Sender)
+{
+    ClearTimer(NameOf(CancelOpenLink));
+}
+
 function OverrideBroadcastHandler()
 {
     // TODO: can this cause conflict between client and server?
@@ -375,6 +486,14 @@ function ReceiveMessage(PlayerReplicationInfo Sender, string Msg, name Type)
         return;
     }
 
+    FlushGameChatMessageQueue();
+    PostGameChatMessage(Sender, Msg, Type);
+}
+
+function FlushGameChatMessageQueue()
+{
+    local int i;
+
     if (GameChatMessageQueue.Length > 0)
     {
         for (i = 0; i < GameChatMessageQueue.Length; ++i)
@@ -387,8 +506,6 @@ function ReceiveMessage(PlayerReplicationInfo Sender, string Msg, name Type)
 
         GameChatMessageQueue.Length = 0;
     }
-
-    PostGameChatMessage(Sender, Msg, Type);
 }
 
 event PreBeginPlay()
@@ -493,11 +610,14 @@ function PostGame()
     local string PostData;
     local Request Req;
 
+    if (GameId != "")
+    {
+        `cgbwarn("attempted PostGame with GameId already set!");
+        return;
+    }
+
     // Game start time.
     PostData = string(WorldInfo.RealTimeSeconds);
-    // TODO: NEED TO RETRY THIS IF IT FAILS FOR WHATEVER REASON!
-
-    // TODO: queue request here.
 
     // TODO: in the OnCompleted handler of PostGame, we need to send
     //       the initial list of players and set bInitialPlayersSent = True!
@@ -604,7 +724,40 @@ function PostGameChatMessage(PlayerReplicationInfo Sender, string Msg, name Type
     }
 }
 
-final function ProcessRequestQueue()
+function DeleteGamePlayer(int PlayerID)
+{
+    // TODO
+}
+
+function PutGamePlayer(Controller Player)
+{
+    local Request Req;
+
+    if (Player.PlayerReplicationInfo == None)
+    {
+        return;
+    }
+
+    Req.Url = Config.ApiUrl $ "game/" $ GameId $ "/player/" $ Player.PlayerReplicationInfo.PlayerID;
+    Req.Data = Player.PlayerReplicationInfo.PlayerName $ "\n"
+        $ Player.PlayerReplicationInfo.Team.TeamIndex $ "\n"
+        $ Player.PlayerReplicationInfo.Score;
+    Req.Verb = Verb_Post;
+    Req.OnComplete = PutGamePlayer_OnComplete;
+    Req.OnReturnCode = PutGamePlayer_OnReturnCode;
+    Req.OnResolveFailed = PutGamePlayer_OnResolveFailed;
+    Req.OnConnectionTimeout = PutGamePlayer_OnConnectionTimeout;
+    Req.OnConnectError = PutGamePlayer_OnConnectError;
+    Req.OnSendRequestHeaders = PutGamePlayer_OnSendRequestHeaders;
+
+    RequestQueue.AddItem(Req);
+    if (!IsTimerActive(NameOf(ProcessRequestQueue)))
+    {
+        SetTimer(0.001, False, NameOf(ProcessRequestQueue));
+    }
+}
+
+function ProcessRequestQueue()
 {
     // TODO: if we want parallel request capability we need to spawn
     //       and destroy sockets dynamically for each request.
@@ -647,13 +800,13 @@ final function ProcessRequestQueue()
     }
 }
 
-final function SetCancelOpenLinkTimer(optional float Timeout = 2.0)
+function SetCancelOpenLinkTimer(optional float Timeout = 2.0)
 {
     SetTimer(Timeout, False, NameOf(CancelOpenLink));
 }
 
 // Stupid hack to avoid HttpSock from spamming logs if connection fails!
-final function CancelOpenLink()
+function CancelOpenLink()
 {
     if (Sock != None)
     {
@@ -671,9 +824,17 @@ final function CancelOpenLink()
 
 function NotifyLogout(Controller Exiting)
 {
+    local int Idx;
+
     if (GameId != "" && Exiting.PlayerReplicationInfo != None)
     {
-        // DeleteGamePlayer();
+        DeleteGamePlayer(Exiting.PlayerReplicationInfo.PlayerID);
+
+        Idx = PlayerIdToTeam.Find('Key', Exiting.PlayerReplicationInfo.PlayerID);
+        if (Idx != INDEX_NONE)
+        {
+            PlayerIdToTeam.Remove(Idx, 1);
+        }
     }
 
     super.NotifyLogout(Exiting);
@@ -681,9 +842,24 @@ function NotifyLogout(Controller Exiting)
 
 function NotifyLogin(Controller NewPlayer)
 {
+    local int Idx;
+    local KeyValuePair_IntInt KV;
+
     if (GameId != "")
     {
-        // PutGamePlayer();
+        PutGamePlayer(NewPlayer);
+
+        Idx = PlayerIdToTeam.Find('Key', NewPlayer.PlayerReplicationInfo.PlayerID);
+        if (Idx == INDEX_NONE)
+        {
+            KV.Key = NewPlayer.PlayerReplicationInfo.PlayerID;
+            KV.Value = NewPlayer.PlayerReplicationInfo.Team.TeamIndex;
+            PlayerIdToTeam.AddItem(KV);
+            `cgbdebug("added new player ID to team mapping:"
+                @ NewPlayer.PlayerReplicationInfo.PlayerID @ "->"
+                @ NewPlayer.PlayerReplicationInfo.Team.TeamIndex
+            );
+        }
     }
 
     super.NotifyLogin(NewPlayer);
@@ -701,6 +877,48 @@ function ScoreKill(Controller Killer, Controller Victim)
     }
 
     super.ScoreKill(Killer, Victim);
+}
+
+function NavigationPoint FindPlayerStart(
+    Controller Player,
+    optional byte InTeam,
+    optional string IncomingName)
+{
+    local int Idx;
+    local KeyValuePair_IntInt KV;
+
+    if (GameId != "")
+    {
+        // If a player ID's team has changed, we have to send a PUT update.
+        Idx = PlayerIdToTeam.Find('Key', Player.PlayerReplicationInfo.PlayerID);
+        if (Idx == INDEX_NONE)
+        {
+            KV.Key = Player.PlayerReplicationInfo.PlayerID;
+            KV.Value = Player.PlayerReplicationInfo.Team.TeamIndex;
+            PlayerIdToTeam.AddItem(KV);
+            `cgbdebug("added new player ID to team mapping:"
+                @ Player.PlayerReplicationInfo.PlayerID @ "->"
+                @ Player.PlayerReplicationInfo.Team.TeamIndex
+            );
+        }
+        else
+        {
+            // Player exists, send update to backend if team changed.
+            // There's no good way to capture team change events, so this is
+            // the best effort, close enough approach.
+            if (PlayerIdToTeam[Idx].Value != Player.PlayerReplicationInfo.Team.TeamIndex)
+            {
+                PlayerIdToTeam[Idx].Value = Player.PlayerReplicationInfo.Team.TeamIndex;
+                PutGamePlayer(Player);
+                `cgbdebug("updated player ID to team mapping:"
+                    @ Player.PlayerReplicationInfo.PlayerID @ "->"
+                    @ Player.PlayerReplicationInfo.Team.TeamIndex
+                );
+            }
+        }
+    }
+
+    return Super.FindPlayerStart(Player, InTeam, IncomingName);
 }
 
 function string StringArrayToString(array<string> Strings)
