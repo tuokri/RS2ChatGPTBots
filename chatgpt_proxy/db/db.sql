@@ -76,6 +76,7 @@ CREATE TABLE IF NOT EXISTS "game_player"
     game_id TEXT    NOT NULL,
     id      INTEGER NOT NULL,
     name    TEXT    NOT NULL,
+    team    INTEGER NOT NULL,
     score   INTEGER NOT NULL DEFAULT 0,
 
     FOREIGN KEY (game_id) REFERENCES game (id) ON DELETE CASCADE

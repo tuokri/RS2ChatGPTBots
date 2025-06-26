@@ -179,7 +179,6 @@ async def post_game(
             response_length=None,
         )
         # await client.responses.create(
-        #     previous_response_id=previous_response_id,
         # )
         resp_len = 0  # TODO
         await queries.update_openai_query(
@@ -190,7 +189,11 @@ async def post_game(
 
     greeting = ""
 
-    return sanic.text(f"game_id\n{greeting}")
+    return sanic.text(
+        f"game_id\n{greeting}",
+        status=HTTPStatus.CREATED,
+        headers={"Location": f"/game/{game_id}"},  # TODO: put the full domain here?
+    )
 
 
 @api_v1.put("/game/<game_id>")
@@ -232,7 +235,7 @@ async def put_game(
                 stop_time=stop_time,
             )
 
-    return HTTPResponse(status=HTTPStatus.OK)
+    return HTTPResponse(status=HTTPStatus.NO_CONTENT)
 
 
 @api_v1.post("/game/<game_id>/message")
@@ -278,7 +281,10 @@ async def post_game_message(
                 response_length=resp_len,
             )
 
-    return sanic.text("TODO: this is the message to post in game!")
+    return sanic.text(
+        "TODO: this is the message to post in game!",
+        status=HTTPStatus.OK,
+    )
 
 
 @api_v1.post("/game/<game_id>/kill")
@@ -297,13 +303,14 @@ async def post_game_kill(
         # TODO: log it?
         return sanic.HTTPResponse(HTTPStatus.BAD_REQUEST)
 
-    return sanic.HTTPResponse(status=HTTPStatus.OK)
+    return sanic.HTTPResponse(status=HTTPStatus.NO_CONTENT)
 
 
-@api_v1.post("/game/<game_id>/player")
-async def post_game_player(
+@api_v1.post("/game/<game_id>/player/<player_id>")
+async def put_game_player(
         request: Request,
         game_id: str,
+        player_id: int,
         pg_pool: asyncpg.pool.Pool,
 ) -> HTTPResponse:
     async with pool_acquire(pg_pool) as conn:
@@ -316,7 +323,8 @@ async def post_game_player(
         # TODO: log it?
         return sanic.HTTPResponse(HTTPStatus.BAD_REQUEST)
 
-    return sanic.HTTPResponse(status=HTTPStatus.OK)
+    # TODO: if player exists, send NO_CONTENT, otherwise CREATED.
+    return sanic.HTTPResponse(status=HTTPStatus.NO_CONTENT)
 
 
 @api_v1.post("/game/<game_id>/chat_message")
@@ -335,7 +343,11 @@ async def post_game_chat_message(
         # TODO: log it?
         return sanic.HTTPResponse(HTTPStatus.BAD_REQUEST)
 
-    return sanic.HTTPResponse(status=HTTPStatus.OK)
+    return sanic.HTTPResponse(
+        status=HTTPStatus.NO_CONTENT,
+        # TODO: do even want to do this? Do we need getters for these resources?
+        # headers={"Location": f"/game/{game_id}/{chat_message_id}"}, # TODO: put full domain here?
+    )
 
 
 @api_v1.put("/game/<game_id>/objective_state")
@@ -373,7 +385,7 @@ async def put_game_objective_state(
                 objectives=objs,
             )
 
-    return sanic.HTTPResponse(status=HTTPStatus.OK)
+    return sanic.HTTPResponse(status=HTTPStatus.NO_CONTENT)
 
 
 @app.before_server_start
