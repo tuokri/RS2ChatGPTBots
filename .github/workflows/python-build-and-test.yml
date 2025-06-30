@@ -30,8 +30,8 @@ jobs:
     steps:
       - name: Install Linux tools
         run: |
-          sudo apt update
-          sudo apt install -y \
+          apt update
+          apt install -y \
             git
 
       - uses: actions/checkout@v4
