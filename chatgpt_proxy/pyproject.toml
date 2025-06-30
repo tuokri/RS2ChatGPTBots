@@ -1,6 +1,6 @@
 [project]
 name = "chatgpt-proxy"
-version = "0.1.0"
+dynamic = ["version"]
 description = "ChatGPT proxy server for UnrealScript / UE3 bots."
 readme = "README.md"
 requires-python = ">=3.13"
@@ -15,12 +15,29 @@ dependencies = [
     "sanic[ext]>=25.3.0",
 ]
 
+[build-system]
+requires = ["hatchling", "uv-dynamic-versioning"]
+build-backend = "hatchling.build"
+
+[tool.hatch.version]
+source = "uv-dynamic-versioning"
+
+[tool.hatch.build.hooks.version]
+path = "chatgpt_proxy/_version.py"
+
 [dependency-groups]
 dev = [
+    "hatch>=1.14.1",
     "mypy>=1.16.1",
     "pytest>=8.4.1",
     "respx>=0.22.0",
     "ruff>=0.12.0",
+]
+
+[tool.setuptools]
+packages = [
+    "chatgpt_proxy",
+    "chatgpt_proxy.*",
 ]
 
 # https://github.com/MagicStack/asyncpg/issues/387
