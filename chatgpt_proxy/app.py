@@ -67,7 +67,7 @@ app.config.JWT_ISSUER = auth.jwt_issuer
 app.config.JWT_AUDIENCE = auth.jwt_audience
 
 # TODO: dynamic model selection?
-model = "gpt-4.1"
+openai_model = "gpt-4.1"
 
 # Rough API design:
 # - /message: to "fire" actual message request -> returns a chat message to send in game.
@@ -271,10 +271,14 @@ async def post_game_message(
                 request_length=len(prompt),
                 response_length=None,
             )
-            # await client.responses.create(
-            #     previous_response_id=previous_response_id,
-            # )
-            resp_len = 0  # TODO
+            # TODO: how to best use instruction param here?
+            resp = await client.responses.create(
+                model=openai_model,
+                input=prompt,
+                previous_response_id=previous_response_id,
+            )
+            resp_len = len(resp.output_text)  # TODO
+
             await queries.update_openai_query(
                 conn=conn,
                 query_id=query_id,
