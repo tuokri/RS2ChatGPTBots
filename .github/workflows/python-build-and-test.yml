@@ -9,6 +9,9 @@ on:
 jobs:
   build:
 
+    env:
+      UV_CACHE_DIR: ${{ github.workspace }}/.cache/uv
+
     runs-on: ubuntu-latest
     container: ubuntu:latest
     strategy:
