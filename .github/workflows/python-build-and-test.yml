@@ -34,7 +34,7 @@ jobs:
           apt install -y --no-install-recommends \
             ca-certificates \
             git
-          chown -R runner "${{ github.workspace }}"
+          chown -R root "${{ github.workspace }}"
 
       - uses: actions/checkout@v4
 
