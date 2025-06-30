@@ -33,7 +33,8 @@ jobs:
           apt update
           apt install -y --no-install-recommends \
             ca-certificates \
-            git
+            git \
+            jq
 
       - uses: actions/checkout@v4
 
