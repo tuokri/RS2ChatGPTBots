@@ -45,11 +45,11 @@ jobs:
         run: |
           uv run mypy .
 
-      - name: Run Ruff check
-        working-directory: ./chatgpt_proxy
+      - name: Run Ruff
+        uses: astral-sh/ruff-action@v3
         continue-on-error: true
-        run: |
-          uv run ruff check .
+        with:
+          src: ./chatgpt_proxy
 
       - name: Run pytest
         working-directory: ./chatgpt_proxy
