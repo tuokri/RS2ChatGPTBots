@@ -34,11 +34,14 @@ jobs:
           apt install -y --no-install-recommends \
             ca-certificates \
             git
-          git config --global --add safe.directory '${{ github.workspace }}'
-          git config --global --add safe.directory '${{ github.workspace }}/*'
-          git config --global --add safe.directory '${{ github.workspace }}/**'
 
       - uses: actions/checkout@v4
+
+      - name: Mark workspace as safe for git
+        run: |
+          git config --global --add safe.directory ${{ github.workspace }}
+          git config --global --add safe.directory ${{ github.workspace }}/*
+          git config --global --add safe.directory ${{ github.workspace }}/**
 
       - name: Install uv
         uses: astral-sh/setup-uv@v5
