@@ -31,8 +31,9 @@ jobs:
       - name: Install Linux tools
         run: |
           apt update
-          apt install -y \
+          apt install -y --no-install-recommends \
             git
+          git config --global --add safe.directory '${{ github.workspace }}'
 
       - uses: actions/checkout@v4
 
