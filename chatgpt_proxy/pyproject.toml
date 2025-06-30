@@ -50,3 +50,9 @@ module = [
     "asyncpg.*",
 ]
 ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = [
+    "pypika.*",
+]
+ignore_missing_imports = true
