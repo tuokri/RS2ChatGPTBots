@@ -39,6 +39,18 @@ jobs:
         run: |
           uv build
 
+      - name: Run mypy
+        working-directory: ./chatgpt_proxy
+        continue-on-error: true
+        run: |
+          uv run mypy .
+
+      - name: Run Ruff check
+        working-directory: ./chatgpt_proxy
+        continue-on-error: true
+        run: |
+          uv run ruff check .
+
       - name: Run pytest
         working-directory: ./chatgpt_proxy
         run: |
