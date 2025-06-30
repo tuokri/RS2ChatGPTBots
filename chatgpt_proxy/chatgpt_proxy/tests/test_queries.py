@@ -43,18 +43,30 @@ def test_build_update_game_query():
         stop_time=stop_time,
         openai_previous_response_id=resp_id,
     )
-    print(str(query))
+    q_str = str(query)
+    print(q_str)
+    assert 'UPDATE "game"' in q_str
+    assert f'"stop_time"=\'{stop_time.isoformat()}\'' in q_str
+    assert f'"openai_previous_response_id"=\'{resp_id}\'' in q_str
 
     query = queries.update_game_query(
         game_id=game_id,
         stop_time=stop_time,
         openai_previous_response_id=queries.IGNORED,
     )
-    print(str(query))
+    q_str = str(query)
+    print(q_str)
+    assert 'UPDATE "game"' in q_str
+    assert f'"stop_time"=\'{stop_time.isoformat()}\'' in q_str
+    assert f'"openai_previous_response_id"=\'{resp_id}\'' not in q_str
 
     query = queries.update_game_query(
         game_id=game_id,
         stop_time=queries.IGNORED,
         openai_previous_response_id=resp_id,
     )
-    print(str(query))
+    q_str = str(query)
+    print(q_str)
+    assert 'UPDATE "game"' in q_str
+    assert f'"stop_time"=\'{stop_time.isoformat()}\'' not in q_str
+    assert f'"openai_previous_response_id"=\'{resp_id}\'' in q_str
