@@ -12,6 +12,7 @@ dependencies = [
     "openai>=1.88.0",
     "py-markdown-table>=1.3.0",
     "pyjwt>=2.10.1",
+    "pypika>=0.48.9",
     "sanic[ext]>=25.3.0",
 ]
 
@@ -34,10 +35,9 @@ dev = [
     "ruff>=0.12.0",
 ]
 
-[tool.setuptools]
-packages = [
-    "chatgpt_proxy",
-    "chatgpt_proxy.*",
+[tool.hatch.build.targets.wheel]
+exclude = [
+    "chatgpt_proxy/tests"
 ]
 
 # https://github.com/MagicStack/asyncpg/issues/387
