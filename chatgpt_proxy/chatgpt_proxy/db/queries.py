@@ -25,6 +25,8 @@ import ipaddress
 
 from asyncpg import Connection
 from asyncpg import Record
+from pypika import Query
+from pypika import Table
 
 _default_conn_timeout = 15.0
 
@@ -33,7 +35,7 @@ class Ignored:
     pass
 
 
-ignored = Ignored()
+IGNORED = Ignored()
 
 
 # TODO: add caching layer!
@@ -64,14 +66,34 @@ async def insert_game(
     )
 
 
+def update_game_query(
+        game_id: str,
+        stop_time: datetime.datetime | Ignored = IGNORED,
+        openai_previous_response_id: str | Ignored = IGNORED,
+) -> Query:
+    game = Table(name="game")
+    query = Query.update(game)
+    if stop_time is not IGNORED:
+        query = query.set(game.stop_time, stop_time)
+    if openai_previous_response_id is not IGNORED:
+        query = query.set(game.openai_previous_response_id, openai_previous_response_id)
+    query = query.where(query.id == game_id)
+    return query
+
+
 async def update_game(
         conn: Connection,
         game_id: str,
-        stop_time: datetime.datetime | Ignored = ignored,
-        openai_previous_response_id: str | Ignored = ignored,
+        stop_time: datetime.datetime | Ignored = IGNORED,
+        openai_previous_response_id: str | Ignored = IGNORED,
         timeout: float | None = _default_conn_timeout,
 ):
-    raise NotImplementedError
+    query = update_game_query(
+        game_id=game_id,
+        stop_time=stop_time,
+        openai_previous_response_id=openai_previous_response_id,
+    )
+    await conn.execute(str(query), timeout=timeout)
 
 
 # TODO: what's the best way to handle this? If we make this too dynamic
