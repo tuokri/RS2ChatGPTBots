@@ -29,6 +29,13 @@ from asyncpg import Record
 _default_conn_timeout = 15.0
 
 
+class Ignored:
+    pass
+
+
+ignored = Ignored()
+
+
 # TODO: add caching layer!
 
 async def insert_game(
@@ -57,11 +64,11 @@ async def insert_game(
     )
 
 
-# NOTE: assuming we only ever have to update stop_time!
 async def update_game(
         conn: Connection,
         game_id: str,
-        stop_time: datetime.datetime,
+        stop_time: datetime.datetime | Ignored = ignored,
+        openai_previous_response_id: str | Ignored = ignored,
         timeout: float | None = _default_conn_timeout,
 ):
     raise NotImplementedError
@@ -207,7 +214,7 @@ async def update_openai_query(
         response_length: int | None = None,
         timeout: float | None = _default_conn_timeout,
 ):
-    """Only assuming we ever need to update the response_length!"""
+    """Assuming we ever need to update only response_length!"""
     await conn.execute(
         """
         UPDATE "openai_query"
