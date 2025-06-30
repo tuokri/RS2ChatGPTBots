@@ -20,12 +20,14 @@ jobs:
 
       - name: Install uv
         uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          cache-dependency-glob: ./chatgpt_proxy/uv.lock
 
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
-          cache: 'pip'
 
       - name: Install the project
         working-directory: ./chatgpt_proxy
@@ -41,3 +43,7 @@ jobs:
         working-directory: ./chatgpt_proxy
         run: |
           uv run pytest
+
+      - name: Minimize uv cache
+        working-directory: ./chatgpt_proxy
+        run: uv cache prune --ci
