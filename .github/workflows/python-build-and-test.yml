@@ -34,12 +34,9 @@ jobs:
           apt install -y --no-install-recommends \
             ca-certificates \
             git
+          git config --global --add safe.directory '${{ github.workspace }}'
 
       - uses: actions/checkout@v4
-
-#      - name: Run chown on workspace
-#        run: |
-#          chown -R root "${{ github.workspace }}"
 
       - name: Install uv
         uses: astral-sh/setup-uv@v5
