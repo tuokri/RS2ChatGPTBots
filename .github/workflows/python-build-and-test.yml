@@ -28,6 +28,12 @@ jobs:
           --health-retries 5
 
     steps:
+      - name: Install Linux tools
+        run: |
+          sudo apt update
+          sudo apt install -y \
+            git
+
       - uses: actions/checkout@v4
 
       - name: Install uv
