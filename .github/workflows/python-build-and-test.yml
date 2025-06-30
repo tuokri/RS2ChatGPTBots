@@ -9,9 +9,6 @@ on:
 jobs:
   build:
 
-    env:
-      UV_CACHE_DIR: ${{ github.workspace }}/.cache/uv
-
     runs-on: ubuntu-latest
     container: ubuntu:latest
     strategy:
@@ -43,9 +40,11 @@ jobs:
       - name: Mark workspace as safe for git
         run: |
           echo ${{ github.workspace }}
+          echo $GITHUB_WORKSPACE
           git config --global --add safe.directory ${{ github.workspace }}
           git config --global --add safe.directory ${{ github.workspace }}/*
           git config --global --add safe.directory ${{ github.workspace }}/**
+          git config --global --add safe.directory $GITHUB_WORKSPACE
 
       - name: Install uv
         uses: astral-sh/setup-uv@v5
