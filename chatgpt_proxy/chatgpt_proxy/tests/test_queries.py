@@ -25,6 +25,8 @@ import datetime
 from chatgpt_proxy.db import queries
 
 
+# TODO: maybe just scrap this test after there's a proper test
+#   of the entire API + DB available?
 def test_build_update_game_query():
     game_id = "123"
     stop_time = datetime.datetime(
@@ -38,7 +40,7 @@ def test_build_update_game_query():
     )
     resp_id = "xxx"
 
-    query = queries.update_game_query(
+    query = queries.build_update_game_query(
         game_id=game_id,
         stop_time=stop_time,
         openai_previous_response_id=resp_id,
@@ -49,7 +51,7 @@ def test_build_update_game_query():
     assert f'"stop_time"=\'{stop_time.isoformat()}\'' in q_str
     assert f'"openai_previous_response_id"=\'{resp_id}\'' in q_str
 
-    query = queries.update_game_query(
+    query = queries.build_update_game_query(
         game_id=game_id,
         stop_time=stop_time,
         openai_previous_response_id=queries.IGNORED,
@@ -60,7 +62,7 @@ def test_build_update_game_query():
     assert f'"stop_time"=\'{stop_time.isoformat()}\'' in q_str
     assert f'"openai_previous_response_id"=\'{resp_id}\'' not in q_str
 
-    query = queries.update_game_query(
+    query = queries.build_update_game_query(
         game_id=game_id,
         stop_time=queries.IGNORED,
         openai_previous_response_id=resp_id,

@@ -66,7 +66,7 @@ async def insert_game(
     )
 
 
-def update_game_query(
+def build_update_game_query(
         game_id: str,
         stop_time: datetime.datetime | Ignored = IGNORED,
         openai_previous_response_id: str | Ignored = IGNORED,
@@ -88,7 +88,7 @@ async def update_game(
         openai_previous_response_id: str | Ignored = IGNORED,
         timeout: float | None = _default_conn_timeout,
 ):
-    query = update_game_query(
+    query = build_update_game_query(
         game_id=game_id,
         stop_time=stop_time,
         openai_previous_response_id=openai_previous_response_id,
