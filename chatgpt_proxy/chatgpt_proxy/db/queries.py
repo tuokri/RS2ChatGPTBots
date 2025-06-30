@@ -173,6 +173,32 @@ async def select_game_server_api_key(
     )
 
 
+async def insert_game_server_api_key(
+        conn: Connection,
+        issued_at: datetime.datetime,
+        expires_at: datetime.datetime,
+        token_hash: bytes,
+        game_server_address: ipaddress.IPv4Address,
+        game_server_port: int,
+        name: str | None = None,
+        timeout: float | None = _default_conn_timeout,
+):
+    await conn.execute(
+        """
+        INSERT INTO "game_server_api_key"
+        (created_at, expires_at, api_key_hash, game_server_address, game_server_port, name)
+        VALUES ($1, $2, $3, $4, $5, $6)
+        """,
+        issued_at,
+        expires_at,
+        token_hash,
+        game_server_address,
+        game_server_port,
+        name,
+        timeout=timeout,
+    )
+
+
 async def game_exists(
         conn: Connection,
         game_id: str,

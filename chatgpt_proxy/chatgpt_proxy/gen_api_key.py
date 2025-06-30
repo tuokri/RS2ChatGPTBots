@@ -34,6 +34,8 @@ import click
 import jwt
 from asyncpg import Connection
 
+from chatgpt_proxy.db import queries
+
 
 async def async_main(
         game_server_address: ipaddress.IPv4Address,
@@ -61,19 +63,14 @@ async def async_main(
         )
         token_sha256 = hashlib.sha256(token.encode("utf-8")).digest()
         conn = await asyncpg.connect(url)
-        await conn.execute(
-            """
-            INSERT INTO "game_server_api_key"
-            (created_at, expires_at, api_key_hash, game_server_address, game_server_port, name)
-            VALUES ($1, $2, $3, $4, $5, $6)
-            """,
-            iat,
-            expires_at,
-            token_sha256,
-            game_server_address,
-            game_server_port,
-            name,
-            timeout=10.0,
+        await queries.insert_game_server_api_key(
+            conn=conn,
+            issued_at=iat,
+            expires_at=expires_at,
+            token_hash=token_sha256,
+            game_server_address=game_server_address,
+            game_server_port=game_server_port,
+            name=name,
         )
         print(token)
     finally:
