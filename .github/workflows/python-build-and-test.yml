@@ -16,6 +16,9 @@ jobs:
       matrix:
         python-version: [ "3.13" ]
 
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/chatgpt_proxy_tests
+
     services:
       postgres:
         image: postgres

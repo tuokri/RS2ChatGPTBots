@@ -20,6 +20,7 @@ from chatgpt_proxy.db import queries
 
 _db_url = "postgresql://postgres:postgres@localhost:5432/"
 _db_test_url = "postgresql://postgres:postgres@localhost:5432/chatgpt_proxy_tests"
+_db_test_url = os.environ.get("DATABASE_URL", _db_test_url)
 _db_timeout = 30.0
 
 _root_path = Path(chatgpt_proxy.__file__).resolve().parent
