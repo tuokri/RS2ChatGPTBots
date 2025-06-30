@@ -36,6 +36,7 @@ jobs:
             git
           git config --global --add safe.directory '${{ github.workspace }}'
           git config --global --add safe.directory '${{ github.workspace }}/*'
+          git config --global --add safe.directory '${{ github.workspace }}/**'
 
       - uses: actions/checkout@v4
 
