@@ -28,12 +28,16 @@ jobs:
           cache: 'pip'
 
       - name: Install the project
-        run: uv sync --locked --all-extras --dev
+        working-directory: ./chatgpt_proxy
+        run: |
+          uv sync --locked --all-extras --dev
 
       - name: Build project
+        working-directory: ./chatgpt_proxy
         run: |
           uv build
 
       - name: Run pytest
+        working-directory: ./chatgpt_proxy
         run: |
           uv run pytest
