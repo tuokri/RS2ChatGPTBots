@@ -58,7 +58,7 @@ app.blueprint(api_v1)
 # We don't expect UScript side to send large requests.
 app.config.REQUEST_MAX_SIZE = 1500
 app.config.REQUEST_MAX_HEADER_SIZE = 1500
-# app.config.OAS = False
+app.config.OAS = not is_prod_env
 if is_prod_env:
     app.config.SECRET = os.environ["SANIC_SECRET"]
 else:
@@ -68,6 +68,7 @@ app.config.JWT_AUDIENCE = auth.jwt_audience
 
 # TODO: dynamic model selection?
 openai_model = "gpt-4.1"
+openai_timeout = 10.0  # TODO: this might be way too low?
 
 # Rough API design:
 # - /message: to "fire" actual message request -> returns a chat message to send in game.
@@ -256,6 +257,9 @@ async def post_game_message(
         previous_response_id: str = game["openai_previous_response_id"]
         level: str = game["level"]
 
+        # TODO: if openai_previous_response_id is None, should we just
+        #       bail here? Or just continue anyway, but log a warning?
+
         # TODO: we need to keep track of which kills and messages have
         #       already been sent to ChatGPT? Just use send_time and
         #       kill_time variables?
@@ -276,6 +280,7 @@ async def post_game_message(
                 model=openai_model,
                 input=prompt,
                 previous_response_id=previous_response_id,
+                timeout=openai_timeout,
             )
             resp_len = len(resp.output_text)  # TODO
 
@@ -283,6 +288,7 @@ async def post_game_message(
                 conn=conn,
                 query_id=query_id,
                 response_length=resp_len,
+                timeout=openai_timeout,
             )
 
     return sanic.text(
