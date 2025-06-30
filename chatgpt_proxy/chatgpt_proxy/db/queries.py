@@ -77,7 +77,7 @@ def update_game_query(
         query = query.set(game.stop_time, stop_time)
     if openai_previous_response_id is not IGNORED:
         query = query.set(game.openai_previous_response_id, openai_previous_response_id)
-    query = query.where(query.id == game_id)
+    query = query.where(game.id == game_id)
     return query
 
 
