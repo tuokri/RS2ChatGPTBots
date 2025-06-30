@@ -28,12 +28,13 @@ jobs:
           --health-retries 5
 
     steps:
-      - name: Install Linux tools
+      - name: Set up container
         run: |
           apt update
           apt install -y --no-install-recommends \
+            ca-certificates \
             git
-          git config --global --add safe.directory '${{ github.workspace }}'
+          chown -R runner "${{ github.workspace }}"
 
       - uses: actions/checkout@v4
 
