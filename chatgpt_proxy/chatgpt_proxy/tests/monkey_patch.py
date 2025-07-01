@@ -20,19 +20,8 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-import ipaddress
-import os
-
-from chatgpt_proxy.common import Request
-
-is_prod_env: bool = "FLY_APP_NAME" in os.environ
-
-
-def get_remote_addr(request: Request) -> ipaddress.IPv4Address:
-    """Ignoring IPv6 since Steam game servers should always
-    be IPv4, and this API only expects requests from Steam GSs.
-    """
-    if is_prod_env:
-        return ipaddress.IPv4Address(request.headers["Fly-Client-IP"])
-    else:
-        return ipaddress.IPv4Address(request.client_ip)
+def monkey_patch_sanic_testing(
+        asgi_host: str,
+) -> None:
+    import sanic_testing.testing
+    sanic_testing.testing.ASGI_HOST = asgi_host

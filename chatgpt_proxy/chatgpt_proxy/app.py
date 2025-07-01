@@ -137,10 +137,37 @@ async def api_v1_on_request(request: Request) -> HTTPResponse | None:
     return None
 
 
+@api_v1.get("/game/<game_id:str>")
+async def get_game(
+        _: Request,
+        game_id: str,
+        pg_pool: asyncpg.Pool,
+) -> HTTPResponse:
+    # TODO: do we need these for anything other than testing?
+    if is_prod_env:
+        return HTTPResponse(status=HTTPStatus.NOT_FOUND)
+
+    async with pool_acquire(pg_pool) as conn:
+        db_game = await queries.select_game(conn=conn, game_id=game_id)
+
+        if not db_game:
+            return HTTPResponse(status=HTTPStatus.NOT_FOUND)
+
+        game = dict(db_game)
+        game["start_time"] = game["start_time"].isoformat()
+        stop_time = game["stop_time"]
+        if stop_time:
+            game["stop_time"] = stop_time.isoformat()
+        game["game_server_address"] = str(game["game_server_address"])
+
+        return sanic.json(game)
+
+
 @api_v1.post("/game")
 async def post_game(
         request: Request,
-        pg_pool: asyncpg.pool.Pool,
+        pg_pool: asyncpg.Pool,
+        client: openai.AsyncOpenAI,
 ) -> HTTPResponse:
     try:
         # level\nserver_game_port
@@ -167,41 +194,47 @@ async def post_game(
                 stop_time=None,
             )
 
-    # TODO: we need to do an OpenAI query here. We send initial
-    #   game state to the LLM, and ask it for a short greeting message.
-    async with conn.transaction():
-        prompt = "TODO"
-        query_id = await queries.insert_openai_query(
-            conn=conn,
-            time=datetime.datetime.now(tz=datetime.timezone.utc),
-            game_server_address=addr,
-            game_server_port=game_port,
-            request_length=len(prompt),
-            response_length=None,
-        )
-        # await client.responses.create(
-        # )
-        resp_len = 0  # TODO
-        await queries.update_openai_query(
-            conn=conn,
-            query_id=query_id,
-            response_length=resp_len,
-        )
+        # TODO: we need to do an OpenAI query here. We send initial
+        #   game state to the LLM, and ask it for a short greeting message.
+        async with conn.transaction():
+            prompt = "Please describe yourself in 100 letters or less."  # TODO
+            query_id = await queries.insert_openai_query(
+                conn=conn,
+                time=datetime.datetime.now(tz=datetime.timezone.utc),
+                game_server_address=addr,
+                game_server_port=game_port,
+                request_length=len(prompt),
+                response_length=None,
+            )
+            openai_resp = await client.responses.create(
+                model=openai_model,
+                input=prompt,
+                timeout=openai_timeout,
+                max_tool_calls=0,
+            )
+            resp_len = len(openai_resp.output_text)
+            await queries.update_openai_query(
+                conn=conn,
+                query_id=query_id,
+                response_length=resp_len,
+            )
 
-    greeting = ""
+    greeting = openai_resp.output_text
 
     return sanic.text(
-        f"game_id\n{greeting}",
+        f"{game_id}\n{greeting}",
         status=HTTPStatus.CREATED,
-        headers={"Location": f"/game/{game_id}"},  # TODO: put the full domain here?
+        # TODO: use url_for!
+        headers={"Location": f"{api_v1.version_prefix}{api_v1.version}/game/{game_id}"},
+        # TODO: put the full domain here?
     )
 
 
-@api_v1.put("/game/<game_id>")
+@api_v1.put("/game/<game_id:str>")
 async def put_game(
         request: Request,
         game_id: str,
-        pg_pool: asyncpg.pool.Pool,
+        pg_pool: asyncpg.Pool,
 ) -> HTTPResponse:
     """Update existing game. We break a REST principle here by
     allowing partial updates in PUT, mostly because we're lazy,
@@ -239,11 +272,11 @@ async def put_game(
     return HTTPResponse(status=HTTPStatus.NO_CONTENT)
 
 
-@api_v1.post("/game/<game_id>/message")
+@api_v1.post("/game/<game_id:str>/message")
 async def post_game_message(
         request: Request,
         game_id: str,
-        pg_pool: asyncpg.pool.Pool,
+        pg_pool: asyncpg.Pool,
         client: openai.AsyncOpenAI,
 ) -> HTTPResponse:
     # Validation: valid JWT, correct IP, correct port, request actually
@@ -297,11 +330,11 @@ async def post_game_message(
     )
 
 
-@api_v1.post("/game/<game_id>/kill")
+@api_v1.post("/game/<game_id:str>/kill")
 async def post_game_kill(
         request: Request,
         game_id: str,
-        pg_pool: asyncpg.pool.Pool,
+        pg_pool: asyncpg.Pool,
 ) -> HTTPResponse:
     async with pool_acquire(pg_pool) as conn:
         if not await queries.game_exists(conn, game_id):
@@ -316,12 +349,12 @@ async def post_game_kill(
     return sanic.HTTPResponse(status=HTTPStatus.NO_CONTENT)
 
 
-@api_v1.post("/game/<game_id>/player/<player_id>")
+@api_v1.post("/game/<game_id:str>/player/<player_id:int>")
 async def put_game_player(
         request: Request,
         game_id: str,
         player_id: int,
-        pg_pool: asyncpg.pool.Pool,
+        pg_pool: asyncpg.Pool,
 ) -> HTTPResponse:
     async with pool_acquire(pg_pool) as conn:
         if not await queries.game_exists(conn, game_id):
@@ -337,11 +370,11 @@ async def put_game_player(
     return sanic.HTTPResponse(status=HTTPStatus.NO_CONTENT)
 
 
-@api_v1.post("/game/<game_id>/chat_message")
+@api_v1.post("/game/<game_id:str>/chat_message")
 async def post_game_chat_message(
         request: Request,
         game_id: str,
-        pg_pool: asyncpg.pool.Pool,
+        pg_pool: asyncpg.Pool,
 ) -> HTTPResponse:
     async with pool_acquire(pg_pool) as conn:
         if not await queries.game_exists(conn, game_id):
@@ -360,11 +393,11 @@ async def post_game_chat_message(
     )
 
 
-@api_v1.put("/game/<game_id>/objective_state")
+@api_v1.put("/game/<game_id:str>/objective_state")
 async def put_game_objective_state(
         request: Request,
         game_id: str,
-        pg_pool: asyncpg.pool.Pool,
+        pg_pool: asyncpg.Pool,
 ) -> HTTPResponse:
     # Defensive check to avoid passing long strings to literal_eval.
     if len(request.body) > 2000:
@@ -422,7 +455,7 @@ async def before_server_stop(app_: App, _):
 async def db_maintenance(stop_event: EventType) -> None:
     # TODO: try to reduce the levels of nestedness.
 
-    pool: asyncpg.pool.Pool | None = None
+    pool: asyncpg.Pool | None = None
 
     try:
         db_url = os.environ.get("DATABASE_URL")

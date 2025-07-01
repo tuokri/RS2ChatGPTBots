@@ -32,7 +32,7 @@ import sanic
 
 class Context(SimpleNamespace):
     client: openai.AsyncOpenAI | None
-    pg_pool: asyncpg.pool.Pool | None
+    pg_pool: asyncpg.Pool | None
 
 
 App: TypeAlias = sanic.Sanic[sanic.Config, Context]

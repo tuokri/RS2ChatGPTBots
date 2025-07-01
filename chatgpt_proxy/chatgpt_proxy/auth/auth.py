@@ -24,7 +24,7 @@ import hashlib
 import ipaddress
 from hmac import compare_digest
 
-import asyncpg.pool
+import asyncpg
 import jwt
 
 from chatgpt_proxy.common import Request
@@ -36,7 +36,7 @@ jwt_issuer = "ChatGPTProxy"
 jwt_audience = "ChatGPTProxy"
 
 
-async def check_token(request: Request, pg_pool: asyncpg.pool.Pool) -> bool:
+async def check_token(request: Request, pg_pool: asyncpg.Pool) -> bool:
     if not request.token:
         return False
 

@@ -14,6 +14,7 @@ dependencies = [
     "pyjwt>=2.10.1",
     "pypika>=0.48.9",
     "sanic[ext]>=25.3.0",
+    "ujson>=5.10.0",
 ]
 
 [build-system]
@@ -54,5 +55,11 @@ ignore_missing_imports = true
 [[tool.mypy.overrides]]
 module = [
     "pypika.*",
+]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = [
+    "sanic_testing.*",
 ]
 ignore_missing_imports = true
