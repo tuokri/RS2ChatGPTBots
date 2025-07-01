@@ -381,7 +381,7 @@ async def put_game_objective_state(
         data = request.body.decode("utf-8")
         objs: list[list[str]] = ast.literal_eval(data)
         t = type(objs)  # NOTE: skipping nested type checks.
-        if not t == list:
+        if t is not list:
             raise ValueError(f"expected list type, got {t}")
     except Exception as e:
         logger.debug("error parsing objectives data", exc_info=e)
