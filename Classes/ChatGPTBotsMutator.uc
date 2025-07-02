@@ -885,7 +885,7 @@ function PostGameKill(Controller Killer, Controller Victim)
     Req.Data = WorldInfo.RealTimeSeconds $ "\n"
         $ Killer.PlayerReplicationInfo.PlayerName $ "\n"
         $ Victim.PlayerReplicationInfo.PlayerName $ "\n"
-        $ Victim.PlayerReplicationInfo.Team.TeamIndex $ "\n"
+        $ Killer.PlayerReplicationInfo.Team.TeamIndex $ "\n"
         $ Victim.PlayerReplicationInfo.Team.TeamIndex;
 
     if (VictimPawn != None)
