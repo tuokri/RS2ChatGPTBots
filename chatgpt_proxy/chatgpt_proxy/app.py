@@ -47,6 +47,7 @@ from chatgpt_proxy.db import pool_acquire
 from chatgpt_proxy.db import queries
 from chatgpt_proxy.utils import get_remote_addr
 from chatgpt_proxy.utils import is_prod_env
+from chatgpt_proxy.utils import utcnow
 
 os.environ["LOGURU_AUTOINIT"] = "1"
 from loguru import logger
@@ -128,6 +129,12 @@ class SayType(StrEnum):
     TEAM = "1"
 
 
+class Team(StrEnum):
+    North = "0"
+    South = "1"
+    Neutral = "3"
+
+
 @api_v1.on_request
 async def api_v1_on_request(request: Request) -> HTTPResponse | None:
     authenticated = await auth.check_token(request, request.ctx.pg_pool)
@@ -178,7 +185,7 @@ async def post_game(
         logger.debug("error parsing game data", exc_info=e)
         return HTTPResponse(status=HTTPStatus.BAD_REQUEST)
 
-    now = datetime.datetime.now(tz=datetime.timezone.utc)
+    now = utcnow()
     game_id = secrets.token_hex(game_id_length)
     addr = get_remote_addr(request)
 
@@ -200,7 +207,7 @@ async def post_game(
             prompt = "Please describe yourself in 100 letters or less."  # TODO
             query_id = await queries.insert_openai_query(
                 conn=conn,
-                time=datetime.datetime.now(tz=datetime.timezone.utc),
+                time=utcnow(),
                 game_server_address=addr,
                 game_server_port=game_port,
                 request_length=len(prompt),
@@ -297,12 +304,16 @@ async def post_game_message(
         #       already been sent to ChatGPT? Just use send_time and
         #       kill_time variables?
 
-        prompt = request.body.decode("utf-8")
+        data_in = request.body.decode("utf-8").split("\n")
+        say_type = SayType(data_in[0])
+        say_team = Team(data_in[1])
+        say_name = data_in[2]
+        prompt = data_in[3]
 
         async with conn.transaction():
             query_id = await queries.insert_openai_query(
                 conn=conn,
-                time=datetime.datetime.now(tz=datetime.timezone.utc),
+                time=utcnow(),
                 game_server_address=game["game_server_address"],
                 game_server_port=game["game_server_port"],
                 request_length=len(prompt),
@@ -324,8 +335,10 @@ async def post_game_message(
                 timeout=openai_timeout,
             )
 
+    resp_data = f"{say_type}\n{say_team}\n{say_name}\nMESSAGE"  # TODO
+
     return sanic.text(
-        "TODO: this is the message to post in game!",
+        resp_ddata,
         status=HTTPStatus.OK,
     )
 
@@ -382,6 +395,21 @@ async def post_game_chat_message(
 
     try:
         parts = request.body.decode("utf-8").split("\n")
+        player_name = parts[0]
+        player_team = Team(parts[1])
+        say_type = SayType(parts[2])
+        msg = parts[3]
+        async with pool_acquire(pg_pool) as conn:
+            async with conn.transaction():
+                await queries.insert_game_chat_message(
+                    conn=conn,
+                    game_id=game_id,
+                    message=msg,
+                    send_time=utcnow(),
+                    sender_name=player_name,
+                    sender_team=int(player_team),
+                    channel=int(say_type),
+                )
     except Exception as TODO:
         # TODO: log it?
         return sanic.HTTPResponse(HTTPStatus.BAD_REQUEST)

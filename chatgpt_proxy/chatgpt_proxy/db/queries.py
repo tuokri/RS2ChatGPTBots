@@ -188,7 +188,7 @@ async def insert_game_server_api_key(
         """
         INSERT INTO "game_server_api_key"
         (created_at, expires_at, api_key_hash, game_server_address, game_server_port, name)
-        VALUES ($1, $2, $3, $4, $5, $6)
+        VALUES ($1, $2, $3, $4, $5, $6);
         """,
         issued_at,
         expires_at,
@@ -272,5 +272,32 @@ async def update_openai_query(
         """,
         query_id,
         response_length,
+        timeout=timeout,
+    )
+
+
+async def insert_game_chat_message(
+        conn: Connection,
+        game_id: str,
+        message: str,
+        send_time: datetime.datetime,
+        sender_name: str,
+        sender_team: int,
+        channel: int,
+        timeout: float | None = _default_conn_timeout,
+) -> int:
+    return await conn.fetchval(
+        """
+        INSERT INTO "game_chat_message"
+            (message, game_id, send_time, sender_name, sender_team, channel)
+        VALUES ($1, $2, $3, $4, $5, $6)
+        RETURNING id;
+        """,
+        message,
+        game_id,
+        send_time,
+        sender_name,
+        sender_team,
+        channel,
         timeout=timeout,
     )

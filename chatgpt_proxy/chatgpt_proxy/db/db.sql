@@ -20,6 +20,8 @@
 -- OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 -- SOFTWARE.
 
+CREATE EXTENSION IF NOT EXISTS "timescaledb";
+
 CREATE TABLE IF NOT EXISTS "game_server_api_key"
 (
     created_at          TIMESTAMPTZ NOT NULL,
@@ -43,20 +45,27 @@ CREATE TABLE IF NOT EXISTS "game"
 );
 
 -- Chat messages belonging to a specific game session sent by players.
+-- Intentionally not tied to player ID, since the "game_player" table
+-- represents the latest known game state (scoreboard), NOT all current
+-- and past players of the game session.
 CREATE TABLE IF NOT EXISTS "game_chat_message"
 (
+    id          BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    message     TEXT        NOT NULL,
     game_id     TEXT        NOT NULL,
     send_time   TIMESTAMPTZ NOT NULL,
     sender_name TEXT,
-    sender_team TEXT,
-    channel     TEXT,
+    sender_team INT,
+    channel     INT,
 
     FOREIGN KEY (game_id) REFERENCES game (id) ON DELETE CASCADE
 );
 
--- Kills scored during a game session.
+-- Kills scored during a game session. Similar to "game_chat_message",
+-- this is not tied to specific player IDs on purpose.
 CREATE TABLE IF NOT EXISTS "game_kill"
 (
+    id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     game_id         TEXT        NOT NULL,
     kill_time       TIMESTAMPTZ NOT NULL,
     killer_name     TEXT,
@@ -94,10 +103,26 @@ CREATE TABLE IF NOT EXISTS "game_objective_state"
 -- TODO: this should be a Timescale hypertable.
 CREATE TABLE IF NOT EXISTS "openai_query"
 (
-    id                  BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     time                TIMESTAMPTZ NOT NULL,
+    game_id             TEXT        NOT NULL,
     game_server_address INET        NOT NULL,
     game_server_port    INTEGER     NOT NULL,
     request_length      INTEGER     NOT NULL,
-    response_length     INTEGER
+    response_length     INTEGER,
+
+    FOREIGN KEY (game_id) REFERENCES game (id)
 );
+
+CREATE INDEX ON "openai_query" (game_id, time DESC);
+CREATE INDEX ON "openai_query" (game_server_address, game_server_port, time DESC);
+
+SELECT create_hypertable('openai_query', 'time');
+SELECT add_retention_policy('openai_query', INTERVAL '1 months');
+
+ALTER TABLE "openai_query"
+    SET (
+        timescaledb.compress,
+        timescaledb.compress_segmentby = 'game_server_address, game_server_port'
+        );
+
+SELECT add_compression_policy('openai_query', INTERVAL '2 days');

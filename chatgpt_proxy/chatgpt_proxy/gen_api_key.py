@@ -35,6 +35,7 @@ import jwt
 from asyncpg import Connection
 
 from chatgpt_proxy.db import queries
+from chatgpt_proxy.utils import utcnow
 
 
 async def async_main(
@@ -49,7 +50,7 @@ async def async_main(
     conn: Connection | None = None
     url = os.environ["DATABASE_URL"]
     try:
-        iat = datetime.datetime.now(tz=datetime.timezone.utc)
+        iat = utcnow()
         token = jwt.encode(
             key=secret,
             algorithm="HS256",

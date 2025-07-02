@@ -44,6 +44,7 @@ from chatgpt_proxy.common import App
 from chatgpt_proxy.db import pool_acquire
 from chatgpt_proxy.db import queries
 from chatgpt_proxy.tests.monkey_patch import monkey_patch_sanic_testing
+from chatgpt_proxy.utils import utcnow
 
 monkey_patch_sanic_testing(
     asgi_host="127.0.0.1",
@@ -65,7 +66,7 @@ assert _pkg_path_tests.exists()
 _sanic_secret = "dummy"
 _game_server_address = ipaddress.IPv4Address("127.0.0.1")
 _game_server_port = 7777
-_now = datetime.datetime.now(tz=datetime.timezone.utc)
+_now = utcnow()
 _iat = _now
 _exp = _now + datetime.timedelta(hours=12)
 _token = jwt.encode(
@@ -111,7 +112,7 @@ async def api_fixture(
     response = openai_responses.Response(
         id="testing_0",
         model="gpt-4.1",
-        created_at=datetime.datetime.now(tz=datetime.timezone.utc).timestamp(),
+        created_at=utcnow().timestamp(),
         object="response",
         error=None,
         instructions=None,
@@ -198,3 +199,8 @@ async def test_api_v1_post_game(api_fixture) -> None:
     game = resp.json
     pprint(game)  # TODO: remove?
     assert game
+
+
+@pytest.mark.asyncio
+async def test_api_v1_post_game_chat_message(api_fixture) -> None:
+    api_app, mock_router, db_conn = api_fixture
