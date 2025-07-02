@@ -90,7 +90,15 @@ const MAX_GAME_WAIT_TIME = 30.0;
 
 var string GameId;
 
+// Team index to post the initial greeting message from the LLM with.
+var() int InitialGreetingTeamIndex;
+// Name to post the initial greeting message from the LLM with.
+var() string InitialGreetingName;
+
 // Last known team of a player ID.
+// TODO: consider if we need this? We could just send a PUT update on every
+//   player spawn, even if their team as not changed. It could however create
+//   a lot of unnecessary traffic.
 var array<KeyValuePair_IntInt> PlayerIdToTeam;
 
 function CreateHTTPClient()
@@ -127,22 +135,28 @@ function FinishRequest()
 // Send the response from the LLM to in-game chat.
 function PostGameMessage_OnComplete(HttpSock Sender)
 {
+    local int SayTeam;
     local string SayType;
     local string Msg;
+    local string SayName;
 
     `cgbdebug("ReturnData:" @ StringArrayToString(Sender.ReturnData));
 
     SayType = Sender.ReturnData[0];
-    Msg = Sender.ReturnData[1];
+    SayTeam = int(Sender.ReturnData[1]);
+    SayName = Sender.ReturnData[2];
+    Msg = Sender.ReturnData[3];
 
-    // TODO: is this the best way to send messages here?
+    CGBProxy.PlayerReplicationInfo.PlayerName = SayName;
+    CGBProxy.PlayerReplicationInfo.Team = WorldInfo.Game.GameReplicationInfo.Teams[SayTeam];
+
     if (SayType == SAY_TEAM)
     {
-        CGBProxy.ServerTeamSay(Msg);
+        WorldInfo.Game.BroadcastTeam(CGBProxy, Msg, 'TeamSay');
     }
     else if (SayType == SAY_ALL)
     {
-        CGBProxy.ServerSay(Msg);
+        WorldInfo.Game.Broadcast(CGBProxy, Msg, 'Say');
     }
     else
     {
@@ -193,6 +207,11 @@ function PostGameChatMessage_OnComplete(HttpSock Sender)
 
 function PostGameChatMessage_OnReturnCode(HttpSock Sender, int ReturnCode, string ReturnMessage, string HttpVer)
 {
+    if (ReturnCode >= 400)
+    {
+        `cgbwarn("failed with ReturnCode:" @ ReturnCode @ ", message:" @ ReturnMessage);
+    }
+
     // NOTE: request may still be ongoing after this!
     ClearTimer(NameOf(CancelOpenLink));
     `cgbdebug("HTTP request:" @ ReturnCode @ ReturnMessage);
@@ -235,9 +254,12 @@ function PostGame_OnComplete(HttpSock Sender)
     if (Sender.LastStatus == 201)
     {
         GameId = Sender.ReturnData[0];
-        `cgbdebug("received GameId:" @ GameId);
+        `cgblog("received GameId:" @ GameId);
 
-        Greeting = Sender.ReturnData[1]; // TODO: use this.
+        Greeting = Sender.ReturnData[1]; // TODO: check this is what we want!
+        CGBProxy.PlayerReplicationInfo.Team = WorldInfo.Game.GameReplicationInfo.Teams[InitialGreetingTeamIndex];
+        CGBProxy.PlayerReplicationInfo.PlayerName = InitialGreetingName;
+        WorldInfo.Game.Broadcast(CGBProxy, Greeting, 'Say');
     }
 
     // This array should be empty when we get here, always, but
@@ -452,6 +474,45 @@ function PutGamePlayer_OnSendRequestHeaders(HttpSock Sender)
     ClearTimer(NameOf(CancelOpenLink));
 }
 
+// ---------------------------------------------------------------------------
+// DeleteGamePlayer delegates. -----------------------------------------------
+// ---------------------------------------------------------------------------
+
+function DeleteGamePlayer_OnComplete(HttpSock Sender)
+{
+    FinishRequest();
+}
+
+function DeleteGamePlayer_OnReturnCode(HttpSock Sender, int ReturnCode, string ReturnMessage, string HttpVer)
+{
+    // NOTE: request may still be ongoing after this!
+    ClearTimer(NameOf(CancelOpenLink));
+    `cgbdebug("HTTP request:" @ ReturnCode @ ReturnMessage);
+}
+
+function DeleteGamePlayer_OnResolveFailed(HttpSock Sender, string Hostname)
+{
+    `cgberror("resolve failed for hostname:" @ Hostname);
+    FinishRequest();
+}
+
+function DeleteGamePlayer_OnConnectionTimeout(HttpSock Sender)
+{
+    `cgberror(Sender @ "connection timed out");
+    FinishRequest();
+}
+
+function DeleteGamePlayer_OnConnectError(HttpSock Sender)
+{
+    `cgberror(Sender @ "connection failed");
+    FinishRequest();
+}
+
+function DeleteGamePlayer_OnSendRequestHeaders(HttpSock Sender)
+{
+    ClearTimer(NameOf(CancelOpenLink));
+}
+
 function OverrideBroadcastHandler()
 {
     // TODO: can this cause conflict between client and server?
@@ -471,6 +532,7 @@ function OverrideBroadcastHandler()
     WorldInfo.Game.BroadcastHandler = Spawn(class'CGBBroadCastHandler', WorldInfo.Game);
 }
 
+// TODO: make sure this receives messages from all teams, squads, etc!
 function ReceiveMessage(PlayerReplicationInfo Sender, string Msg, name Type)
 {
     local int i;
@@ -607,7 +669,6 @@ function HTTPDelete(string Url, optional float Timeout = 2.0)
 
 function PostGame()
 {
-    local string PostData;
     local Request Req;
 
     if (GameId != "")
@@ -616,14 +677,10 @@ function PostGame()
         return;
     }
 
-    // Game start time.
-    PostData = string(WorldInfo.RealTimeSeconds);
-
-    // TODO: in the OnCompleted handler of PostGame, we need to send
-    //       the initial list of players and set bInitialPlayersSent = True!
-
     Req.Url = Config.ApiUrl $ "game";
-    Req.Data = PostData;
+    // TODO: is this the correct port? Or is GameInfo.ListenPort the correct one?
+    Req.Data = WorldInfo.GetMapName(True) $ "\n"
+        $ GameEngine(class'Engine'.static.GetEngine()).LastURL.Port;
     Req.Verb = Verb_Post;
     Req.OnComplete = PostGame_OnComplete;
     Req.OnReturnCode = PostGame_OnReturnCode;
@@ -666,9 +723,10 @@ function PutGame()
 
 // Requests an LLM response from the server, taking current game state
 // into account, in addition to the provided prompt.
-function PostGameMessage(string Prompt)
+function PostGameMessage(name SayType, int SayTeamIndex, string SayName, string Prompt)
 {
-    local string PostData;
+    local Request Req;
+    local string MsgType;
 
     if (GameId == "")
     {
@@ -676,16 +734,40 @@ function PostGameMessage(string Prompt)
         return;
     }
 
-    // TODO: queue request here.
+    if (SayType == 'Say')
+    {
+        MsgType = SAY_ALL;
+    }
+    else if (SayType == 'TeamSay')
+    {
+        MsgType = SAY_TEAM;
+    }
+    else
+    {
+        `cgberror("unexpected SayType:" @ SayType);
+    }
 
-    // HTTPPost(Config.ApiUrl $ "game/" $ GameId $ "/message", PostData);
+    Req.Url = Config.ApiUrl $ "game/" $ GameId $ "/message";
+    Req.Data = MsgType $ "\n" $ SayTeamIndex $ "\n" $ SayName $ "\n" $ Prompt;
+    Req.Verb = Verb_Post;
+    Req.OnComplete = PostGameMessage_OnComplete;
+    Req.OnReturnCode = PostGameMessage_OnReturnCode;
+    Req.OnResolveFailed = PostGameMessage_OnResolveFailed;
+    Req.OnConnectionTimeout = PostGameMessage_OnConnectionTimeout;
+    Req.OnConnectError = PostGameMessage_OnConnectError;
+    Req.OnSendRequestHeaders = PostGameMessage_OnSendRequestHeaders;
+
+    RequestQueue.AddItem(Req);
+    if (!IsTimerActive(NameOf(ProcessRequestQueue)))
+    {
+        SetTimer(0.001, False, NameOf(ProcessRequestQueue));
+    }
 }
 
 // TODO: should we send these in batches?
 function PostGameChatMessage(PlayerReplicationInfo Sender, string Msg, name Type)
 {
     local Request Req;
-    local string PostData;
     local string MsgType;
 
     if (GameId == "")
@@ -708,7 +790,7 @@ function PostGameChatMessage(PlayerReplicationInfo Sender, string Msg, name Type
     }
 
     Req.Url = Config.ApiUrl $ "game/" $ GameId $ "/chat_message";
-    Req.Data = Sender.PlayerID $ "\n" $ MsgType $ "\n" $ Msg;
+    Req.Data = Sender.PlayerName $ "\n" $ Sender.Team.TeamIndex $ "\n" $ MsgType $ "\n" $ Msg;
     Req.Verb = Verb_Post;
     Req.OnComplete = PostGameChatMessage_OnComplete;
     Req.OnReturnCode = PostGameChatMessage_OnReturnCode;
@@ -726,15 +808,43 @@ function PostGameChatMessage(PlayerReplicationInfo Sender, string Msg, name Type
 
 function DeleteGamePlayer(int PlayerID)
 {
-    // TODO
+    local Request Req;
+
+    if (GameId == "")
+    {
+        `cgbwarn("attempted to delete game player without GameId");
+        return;
+    }
+
+    Req.Url = Config.ApiUrl $ "game/" $ GameId $ "/player/" $ PlayerID;
+    Req.Verb = Verb_Delete;
+    Req.OnComplete = DeleteGamePlayer_OnComplete;
+    Req.OnReturnCode = DeleteGamePlayer_OnReturnCode;
+    Req.OnResolveFailed = DeleteGamePlayer_OnResolveFailed;
+    Req.OnConnectionTimeout = DeleteGamePlayer_OnConnectionTimeout;
+    Req.OnConnectError = DeleteGamePlayer_OnConnectError;
+    Req.OnSendRequestHeaders = DeleteGamePlayer_OnSendRequestHeaders;
+
+    RequestQueue.AddItem(Req);
+    if (!IsTimerActive(NameOf(ProcessRequestQueue)))
+    {
+        SetTimer(0.001, False, NameOf(ProcessRequestQueue));
+    }
 }
 
 function PutGamePlayer(Controller Player)
 {
     local Request Req;
 
+    if (GameId == "")
+    {
+        `cgbwarn("attempted to put game player without GameId");
+        return;
+    }
+
     if (Player.PlayerReplicationInfo == None)
     {
+        `cgbwarn("attempted to put game player with null PlayerReplicationInfo");
         return;
     }
 
@@ -749,6 +859,53 @@ function PutGamePlayer(Controller Player)
     Req.OnConnectionTimeout = PutGamePlayer_OnConnectionTimeout;
     Req.OnConnectError = PutGamePlayer_OnConnectError;
     Req.OnSendRequestHeaders = PutGamePlayer_OnSendRequestHeaders;
+
+    RequestQueue.AddItem(Req);
+    if (!IsTimerActive(NameOf(ProcessRequestQueue)))
+    {
+        SetTimer(0.001, False, NameOf(ProcessRequestQueue));
+    }
+}
+
+function PostGameKill(Controller Killer, Controller Victim)
+{
+    local Request Req;
+    local ROPawn VictimPawn;
+
+    if (GameId == "")
+    {
+        `cgbwarn("attempted to post game kill without GameId");
+        return;
+    }
+
+    VictimPawn = ROPawn(Victim.Pawn);
+
+    Req.Url = Config.ApiUrl $ "game/" $ GameId $ "/kill";
+
+    Req.Data = WorldInfo.RealTimeSeconds $ "\n"
+        $ Killer.PlayerReplicationInfo.PlayerName $ "\n"
+        $ Victim.PlayerReplicationInfo.PlayerName $ "\n"
+        $ Victim.PlayerReplicationInfo.Team.TeamIndex $ "\n"
+        $ Victim.PlayerReplicationInfo.Team.TeamIndex;
+
+    if (VictimPawn != None)
+    {
+        Req.Data $= VictimPawn.LastTakeHitInfo.DamageType $ "\n"
+            $ VSize(VictimPawn.LastTakeHitInfo.HitLocation - Killer.Pawn.Location) / 50.0;
+    }
+    else
+    {
+        `cgbwarn("VictimPawn is None, using default values for damage type and hit location");
+        Req.Data $= "None" $ "\n" $ "-1";
+    }
+
+    Req.Verb = Verb_Post;
+    Req.OnComplete = PostGameKill_OnComplete;
+    Req.OnReturnCode = PostGameKill_OnReturnCode;
+    Req.OnResolveFailed = PostGameKill_OnResolveFailed;
+    Req.OnConnectionTimeout = PostGameKill_OnConnectionTimeout;
+    Req.OnConnectError = PostGameKill_OnConnectError;
+    Req.OnSendRequestHeaders = PostGameKill_OnSendRequestHeaders;
 
     RequestQueue.AddItem(Req);
     if (!IsTimerActive(NameOf(ProcessRequestQueue)))
@@ -867,13 +1024,10 @@ function NotifyLogin(Controller NewPlayer)
 
 function ScoreKill(Controller Killer, Controller Victim)
 {
-    if (GameId == "")
+    // Just ignore kills until we have the ID.
+    if (GameId != "")
     {
-        // TODO: queue these.
-    }
-    else
-    {
-        // PostGameKill();
+        PostGameKill(Killer, Victim);
     }
 
     super.ScoreKill(Killer, Victim);
@@ -942,4 +1096,6 @@ function string StringArrayToString(array<string> Strings)
 
 DefaultProperties
 {
+    InitialGreetingTeamIndex=`NEUTRAL_TEAM_INDEX
+    InitialGreetingName="MAINFRAME CHARLIE"
 }
