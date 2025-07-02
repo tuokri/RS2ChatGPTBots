@@ -341,11 +341,34 @@ async def post_game_kill(
         if not await queries.game_exists(conn, game_id):
             return HTTPResponse(status=HTTPStatus.NOT_FOUND)
 
+    # TODO: get game's start date!
+    #       - queries.select_game() or queries.select_game_start_time()
+
     try:
         parts = request.body.decode("utf-8").split("\n")
+        world_time = float(parts[0])
+        killer_name = parts[1]
+        victim_name = parts[2]
+        killer_team = Team(parts[3])
+        victim_team = Team(parts[4])
+        damage_type = parts[5]
+        kill_distance_m = parts[6]
     except Exception as TODO:
         # TODO: log it?
         return sanic.HTTPResponse(HTTPStatus.BAD_REQUEST)
+
+    async with pool_acquire(pg_pool) as conn:
+        await queries.insert_game_kill(
+            conn=conn,
+            game_id=game_id,
+            kill_time=0,  # TODO,
+            killer_name=killer_name,
+            victim_name=victim_name,
+            killer_team=int(killer_team),
+            victim_team=int(victim_team),
+            damage_type=damage_type,
+            kill_distance_m=kill_distance_m,
+        )
 
     return sanic.HTTPResponse(status=HTTPStatus.NO_CONTENT)
 

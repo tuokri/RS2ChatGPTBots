@@ -70,8 +70,8 @@ CREATE TABLE IF NOT EXISTS "game_kill"
     kill_time       TIMESTAMPTZ NOT NULL,
     killer_name     TEXT,
     victim_name     TEXT,
-    killer_team     TEXT,
-    victim_team     TEXT,
+    killer_team     INTEGER,
+    victim_team     INTEGER,
     damage_type     TEXT,
     kill_distance_m DOUBLE PRECISION,
 

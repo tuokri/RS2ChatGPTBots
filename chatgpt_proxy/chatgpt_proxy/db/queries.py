@@ -303,3 +303,34 @@ async def insert_game_chat_message(
         channel,
         timeout=timeout,
     )
+
+
+async def insert_game_kill(
+        conn: Connection,
+        game_id: str,
+        kill_time: datetime.datetime,
+        killer_name: str,
+        victim_name: str,
+        killer_team: int,
+        victim_team: int,
+        damage_type: str,
+        kill_distance_m: float,
+        timeout: float | None = _default_conn_timeout,
+):
+    await conn.execute(
+        """
+        INSERT INTO "game_kill"
+        (game_id, kill_time, killer_name, victim_name, killer_team,
+         victim_team, damage_type, kill_distance_m)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8);
+        """,
+        game_id,
+        kill_time,
+        killer_name,
+        victim_name,
+        killer_team,
+        victim_team,
+        damage_type,
+        kill_distance_m,
+        timeout=timeout,
+    )
