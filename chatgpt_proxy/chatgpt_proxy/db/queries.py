@@ -234,20 +234,21 @@ async def delete_old_api_keys(
 
 async def insert_openai_query(
         conn: Connection,
+        game_id: str,
         time: datetime.datetime,
         game_server_address: ipaddress.IPv4Address,
         game_server_port: int,
         request_length: int,
-        response_length: int | None = None,
+        response_length: int,
         timeout: float | None = _default_conn_timeout,
-) -> int:
-    return await conn.fetchval(
+) -> None:
+    await conn.execute(
         """
         INSERT INTO "openai_query"
-        (time, game_server_address, game_server_port, request_length, response_length)
-        VALUES ($1, $2, $3, $4, $5)
-        RETURNING id;
+        (game_id, time, game_server_address, game_server_port, request_length, response_length)
+        VALUES ($1, $2, $3, $4, $5, $6);
         """,
+        game_id,
         time,
         game_server_address,
         game_server_port,
@@ -257,23 +258,24 @@ async def insert_openai_query(
     )
 
 
-async def update_openai_query(
-        conn: Connection,
-        query_id: int,
-        response_length: int | None = None,
-        timeout: float | None = _default_conn_timeout,
-):
-    """Assuming we ever need to update only response_length!"""
-    await conn.execute(
-        """
-        UPDATE "openai_query"
-        SET response_length = $2
-        WHERE id = $1;
-        """,
-        query_id,
-        response_length,
-        timeout=timeout,
-    )
+# TODO: this can probably be removed?
+# async def update_openai_query(
+#         conn: Connection,
+#         query_id: int,
+#         response_length: int | None = None,
+#         timeout: float | None = _default_conn_timeout,
+# ):
+#     """Assuming we ever need to update only response_length!"""
+#     await conn.execute(
+#         """
+#         UPDATE "openai_query"
+#         SET response_length = $2
+#         WHERE id = $1;
+#         """,
+#         query_id,
+#         response_length,
+#         timeout=timeout,
+#     )
 
 
 async def insert_game_chat_message(

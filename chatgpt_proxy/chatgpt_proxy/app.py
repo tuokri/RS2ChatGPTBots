@@ -205,25 +205,20 @@ async def post_game(
         #   game state to the LLM, and ask it for a short greeting message.
         async with conn.transaction():
             prompt = "Please describe yourself in 100 letters or less."  # TODO
-            query_id = await queries.insert_openai_query(
-                conn=conn,
-                time=utcnow(),
-                game_server_address=addr,
-                game_server_port=game_port,
-                request_length=len(prompt),
-                response_length=None,
-            )
             openai_resp = await client.responses.create(
                 model=openai_model,
                 input=prompt,
                 timeout=openai_timeout,
                 max_tool_calls=0,
             )
-            resp_len = len(openai_resp.output_text)
-            await queries.update_openai_query(
+            await queries.insert_openai_query(
+                game_id=game_id,
                 conn=conn,
-                query_id=query_id,
-                response_length=resp_len,
+                time=utcnow(),
+                game_server_address=addr,
+                game_server_port=game_port,
+                request_length=len(prompt),
+                response_length=len(openai_resp.output_text),
             )
 
     greeting = openai_resp.output_text
@@ -311,14 +306,6 @@ async def post_game_message(
         prompt = data_in[3]
 
         async with conn.transaction():
-            query_id = await queries.insert_openai_query(
-                conn=conn,
-                time=utcnow(),
-                game_server_address=game["game_server_address"],
-                game_server_port=game["game_server_port"],
-                request_length=len(prompt),
-                response_length=None,
-            )
             # TODO: how to best use instruction param here?
             resp = await client.responses.create(
                 model=openai_model,
@@ -326,13 +313,14 @@ async def post_game_message(
                 previous_response_id=previous_response_id,
                 timeout=openai_timeout,
             )
-            resp_len = len(resp.output_text)  # TODO
-
-            await queries.update_openai_query(
+            await queries.insert_openai_query(
                 conn=conn,
-                query_id=query_id,
-                response_length=resp_len,
-                timeout=openai_timeout,
+                game_id=game_id,
+                time=utcnow(),
+                game_server_address=game["game_server_address"],
+                game_server_port=game["game_server_port"],
+                request_length=len(prompt),
+                response_length=len(resp.output_text),
             )
 
     resp_data = f"{say_type}\n{say_team}\n{say_name}\nMESSAGE"  # TODO
