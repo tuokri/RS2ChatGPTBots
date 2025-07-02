@@ -22,10 +22,9 @@
 
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator
-from typing import cast
 
+from asyncpg import Connection
 from asyncpg import Pool
-from asyncpg.pool import PoolAcquireContext
 
 _default_acquire_timeout = 5.0
 
@@ -34,6 +33,7 @@ _default_acquire_timeout = 5.0
 async def pool_acquire(
         pool: Pool,
         timeout: float = _default_acquire_timeout,
-) -> AsyncGenerator[PoolAcquireContext]:
+) -> AsyncGenerator[Connection]:
+    conn: Connection
     async with pool.acquire(timeout=timeout) as conn:
-        yield cast(PoolAcquireContext, conn)
+        yield conn
