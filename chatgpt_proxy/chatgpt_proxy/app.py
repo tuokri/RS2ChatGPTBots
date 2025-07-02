@@ -338,7 +338,7 @@ async def post_game_message(
     resp_data = f"{say_type}\n{say_team}\n{say_name}\nMESSAGE"  # TODO
 
     return sanic.text(
-        resp_ddata,
+        resp_data,
         status=HTTPStatus.OK,
     )
 
