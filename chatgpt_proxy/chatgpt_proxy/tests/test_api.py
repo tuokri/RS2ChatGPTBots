@@ -23,6 +23,7 @@
 import datetime
 import hashlib
 import ipaddress
+import logging
 import os
 from pathlib import Path
 from pprint import pprint
@@ -35,24 +36,33 @@ import openai.types.responses as openai_responses
 import pytest
 import pytest_asyncio
 import respx
+from pytest_loguru.plugin import caplog  # noqa: F401
 
-import chatgpt_proxy
-from chatgpt_proxy import auth
-from chatgpt_proxy.app import app
-from chatgpt_proxy.app import game_id_length
-from chatgpt_proxy.common import App
-from chatgpt_proxy.db import pool_acquire
-from chatgpt_proxy.db import queries
-from chatgpt_proxy.tests.monkey_patch import monkey_patch_sanic_testing
-from chatgpt_proxy.utils import utcnow
+_sanic_secret = "dummy"
+_db_url = "postgresql://postgres:postgres@localhost:5432"
+_db_url = os.environ.get("DATABASE_URL", _db_url)
+_db_test_url = f"{_db_url.rstrip("/")}/chatgpt_proxy_tests"
+os.environ["SANIC_SECRET"] = _sanic_secret
+os.environ["OPENAI_API_KEY"] = "dummy"
+os.environ["DATABASE_URL"] = _db_test_url
+
+import chatgpt_proxy  # noqa: E402
+from chatgpt_proxy import auth  # noqa: E402
+from chatgpt_proxy.app import app  # noqa: E402
+from chatgpt_proxy.app import game_id_length  # noqa: E402
+from chatgpt_proxy.common import App  # noqa: E402
+from chatgpt_proxy.db import pool_acquire  # noqa: E402
+from chatgpt_proxy.db import queries  # noqa: E402
+from chatgpt_proxy.log import logger  # noqa: E402
+from chatgpt_proxy.tests.monkey_patch import monkey_patch_sanic_testing  # noqa: E402
+from chatgpt_proxy.utils import utcnow  # noqa: E402
+
+logger.level("DEBUG")
 
 monkey_patch_sanic_testing(
     asgi_host="127.0.0.1",
 )
 
-_db_url = "postgresql://postgres:postgres@localhost:5432"
-_db_url = os.environ.get("DATABASE_URL", _db_url)
-_db_test_url = f"{_db_url.rstrip("/")}/chatgpt_proxy_tests"
 _db_timeout = 30.0
 
 _root_path = Path(chatgpt_proxy.__file__).resolve().parent
@@ -63,7 +73,6 @@ assert _root_path.exists()
 assert _pkg_path_db.exists()
 assert _pkg_path_tests.exists()
 
-_sanic_secret = "dummy"
 _game_server_address = ipaddress.IPv4Address("127.0.0.1")
 _game_server_port = 7777
 _now = utcnow()
@@ -104,10 +113,6 @@ async def api_fixture(
             "CREATE DATABASE chatgpt_proxy_tests",
             timeout=_db_timeout,
         )
-
-    os.environ["SANIC_SECRET"] = _sanic_secret
-    os.environ["OPENAI_API_KEY"] = "dummy"
-    os.environ["DATABASE_URL"] = _db_test_url
 
     response = openai_responses.Response(
         id="testing_0",
@@ -163,6 +168,7 @@ async def api_fixture(
                 name="pytest API key",
             )
 
+        app.config.ACCESS_LOG = True
         app.asgi_client.headers = _headers
         with respx.mock(base_url="https://api.openai.com/", assert_all_called=False) as mock_router:
             mock_router.post("/v1/responses").mock(
@@ -180,7 +186,8 @@ async def api_fixture(
 
 
 @pytest.mark.asyncio
-async def test_api_v1_post_game(api_fixture) -> None:
+async def test_api_v1_post_game(api_fixture, caplog) -> None:
+    caplog.set_level(logging.DEBUG)
     api_app, mock_router, db_conn = api_fixture
 
     data = "VNTE-TestSuite\n7777"
@@ -202,5 +209,21 @@ async def test_api_v1_post_game(api_fixture) -> None:
 
 
 @pytest.mark.asyncio
-async def test_api_v1_post_game_chat_message(api_fixture) -> None:
+async def test_api_v1_post_game_chat_message(api_fixture, caplog) -> None:
+    caplog.set_level(logging.DEBUG)
     api_app, mock_router, db_conn = api_fixture
+
+    path = "/api/v1/game/first_game/chat_message"
+    data = "my name is dog69\n0\n0\nthis is the actual message!"
+    req, resp = await api_app.asgi_client.post(path, data=data)
+    assert resp.status == 204
+
+    path_404 = "/api/v1/game/THIS_GAME_DOES_NOT_EXIST/chat_message"
+    data = "my name is dog69\n0\n0\nthis is the actual message!"
+    req, resp = await api_app.asgi_client.post(path_404, data=data)
+    assert resp.status == 404
+
+    path_forbidden = "/api/v1/game/game_from_forbidden_server/chat_message"
+    data = "my name is dog69\n0\n0\nthis is the actual message!"
+    req, resp = await api_app.asgi_client.post(path_forbidden, data=data)
+    assert resp.status == 401

@@ -19,9 +19,7 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
-
-# TODO: rethink module organization.
-
+import ipaddress
 from types import SimpleNamespace
 from typing import TypeAlias
 
@@ -30,10 +28,26 @@ import openai
 import sanic
 
 
+# TODO: rethink module organization.
+
+
 class Context(SimpleNamespace):
     client: openai.AsyncOpenAI | None
     pg_pool: asyncpg.Pool | None
 
 
+class RequestContext(SimpleNamespace):
+    jwt_game_server_address: ipaddress.IPv4Address | None = None
+    jwt_game_server_port: int | None = None
+    # TODO: inject game object here too?
+
+
 App: TypeAlias = sanic.Sanic[sanic.Config, Context]
-Request: TypeAlias = sanic.Request[App, Context]
+
+
+class Request(sanic.Request[App, RequestContext]):
+    app: App
+
+    @staticmethod
+    def make_context() -> RequestContext:
+        return RequestContext()

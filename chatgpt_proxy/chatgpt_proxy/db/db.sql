@@ -22,11 +22,12 @@
 
 CREATE EXTENSION IF NOT EXISTS "timescaledb";
 
+-- TODO: enforce only a single token per game_server_address:game_server_port is allowed!
 CREATE TABLE IF NOT EXISTS "game_server_api_key"
 (
     created_at          TIMESTAMPTZ NOT NULL,
     expires_at          TIMESTAMPTZ NOT NULL,
-    api_key_hash        BYTEA       NOT NULL, -- TODO: this design needs some thought.
+    api_key_hash        BYTEA       NOT NULL,
     game_server_address INET        NOT NULL,
     game_server_port    INTEGER     NOT NULL,
     name                TEXT

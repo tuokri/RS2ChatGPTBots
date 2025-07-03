@@ -40,36 +40,35 @@ from sanic import Blueprint
 from sanic.response import HTTPResponse
 
 from chatgpt_proxy.auth import auth
+from chatgpt_proxy.auth import check_game_owner
 from chatgpt_proxy.common import App
 from chatgpt_proxy.common import Context
 from chatgpt_proxy.common import Request
 from chatgpt_proxy.db import pool_acquire
 from chatgpt_proxy.db import queries
+from chatgpt_proxy.log import logger
 from chatgpt_proxy.utils import get_remote_addr
 from chatgpt_proxy.utils import is_prod_env
 from chatgpt_proxy.utils import utcnow
 
-os.environ["LOGURU_AUTOINIT"] = "1"
-from loguru import logger
-
 api_v1 = Blueprint("api", version_prefix="/api/v", version=1)
 
-app: App = sanic.Sanic("ChatGPTProxy", ctx=Context())
-app.blueprint(api_v1)
+app: App = sanic.Sanic(
+    "ChatGPTProxy",
+    ctx=Context(),
+    request_class=Request,  # type: ignore[arg-type]
+)
 # We don't expect UScript side to send large requests.
 app.config.REQUEST_MAX_SIZE = 1500
 app.config.REQUEST_MAX_HEADER_SIZE = 1500
 app.config.OAS = not is_prod_env
-if is_prod_env:
-    app.config.SECRET = os.environ["SANIC_SECRET"]
-else:
-    app.config.SECRET = os.environ.get("SANIC_SECRET", "TEST_SECRET_123123")
+app.config.SECRET = os.environ["SANIC_SECRET"]
 app.config.JWT_ISSUER = auth.jwt_issuer
 app.config.JWT_AUDIENCE = auth.jwt_audience
 
 # TODO: dynamic model selection?
 openai_model = "gpt-4.1"
-openai_timeout = 10.0  # TODO: this might be way too low?
+openai_timeout = 60.0  # TODO: this might be way too low?
 
 # Rough API design:
 # - /message: to "fire" actual message request -> returns a chat message to send in game.
@@ -135,15 +134,6 @@ class Team(StrEnum):
     Neutral = "3"
 
 
-@api_v1.on_request
-async def api_v1_on_request(request: Request) -> HTTPResponse | None:
-    authenticated = await auth.check_token(request, request.ctx.pg_pool)
-    if not authenticated:
-        return sanic.text("Unauthorized.", status=HTTPStatus.UNAUTHORIZED)
-
-    return None
-
-
 @api_v1.get("/game/<game_id:str>")
 async def get_game(
         _: Request,
@@ -182,7 +172,7 @@ async def post_game(
         level, port = data.split("\n")
         game_port = int(port)
     except Exception as e:
-        logger.debug("error parsing game data", exc_info=e)
+        logger.debug("error parsing game data: {}: {}", type(e).__name__, e)
         return HTTPResponse(status=HTTPStatus.BAD_REQUEST)
 
     now = utcnow()
@@ -204,12 +194,11 @@ async def post_game(
         # TODO: we need to do an OpenAI query here. We send initial
         #   game state to the LLM, and ask it for a short greeting message.
         async with conn.transaction():
-            prompt = "Please describe yourself in 100 letters or less."  # TODO
+            prompt = "Write a short poem of 100 letters or less."  # TODO
             openai_resp = await client.responses.create(
                 model=openai_model,
                 input=prompt,
                 timeout=openai_timeout,
-                max_tool_calls=0,
             )
             await queries.insert_openai_query(
                 game_id=game_id,
@@ -233,6 +222,7 @@ async def post_game(
 
 
 @api_v1.put("/game/<game_id:str>")
+@check_game_owner
 async def put_game(
         request: Request,
         game_id: str,
@@ -260,7 +250,7 @@ async def put_game(
         world_time = float(request.body.decode("utf-8"))
         stop_time = start_time + datetime.timedelta(seconds=world_time)
     except Exception as e:
-        logger.debug("error parsing game data", exc_info=e)
+        logger.debug("error parsing game data", type(e).__name__, e)
         return HTTPResponse(HTTPStatus.BAD_REQUEST)
 
     async with pool_acquire(pg_pool) as conn:
@@ -275,6 +265,7 @@ async def put_game(
 
 
 @api_v1.post("/game/<game_id:str>/message")
+@check_game_owner
 async def post_game_message(
         request: Request,
         game_id: str,
@@ -332,6 +323,7 @@ async def post_game_message(
 
 
 @api_v1.post("/game/<game_id:str>/kill")
+@check_game_owner
 async def post_game_kill(
         request: Request,
         game_id: str,
@@ -352,7 +344,7 @@ async def post_game_kill(
         killer_team = Team(parts[3])
         victim_team = Team(parts[4])
         damage_type = parts[5]
-        kill_distance_m = parts[6]
+        kill_distance_m = float(parts[6])
     except Exception as TODO:
         # TODO: log it?
         return sanic.HTTPResponse(HTTPStatus.BAD_REQUEST)
@@ -374,6 +366,7 @@ async def post_game_kill(
 
 
 @api_v1.post("/game/<game_id:str>/player/<player_id:int>")
+@check_game_owner
 async def put_game_player(
         request: Request,
         game_id: str,
@@ -395,6 +388,7 @@ async def put_game_player(
 
 
 @api_v1.post("/game/<game_id:str>/chat_message")
+@check_game_owner
 async def post_game_chat_message(
         request: Request,
         game_id: str,
@@ -421,8 +415,8 @@ async def post_game_chat_message(
                     sender_team=int(player_team),
                     channel=int(say_type),
                 )
-    except Exception as TODO:
-        # TODO: log it?
+    except Exception as e:
+        logger.debug("failed to parse chat message data", type(e).__name__, e)
         return sanic.HTTPResponse(HTTPStatus.BAD_REQUEST)
 
     return sanic.HTTPResponse(
@@ -433,6 +427,7 @@ async def post_game_chat_message(
 
 
 @api_v1.put("/game/<game_id:str>/objective_state")
+@check_game_owner
 async def put_game_objective_state(
         request: Request,
         game_id: str,
@@ -456,7 +451,7 @@ async def put_game_objective_state(
         if t is not list:
             raise ValueError(f"expected list type, got {t}")
     except Exception as e:
-        logger.debug("error parsing objectives data", exc_info=e)
+        logger.debug("error parsing objectives data", type(e).__name__, e)
         return HTTPResponse(status=HTTPStatus.BAD_REQUEST)
 
     async with pool_acquire(pg_pool) as conn:
@@ -515,6 +510,18 @@ async def db_maintenance(stop_event: EventType) -> None:
             await pool.close()
 
 
+@api_v1.on_request
+async def api_v1_on_request(request: Request) -> HTTPResponse | None:
+    authenticated = await auth.check_token(request, request.app.ctx.pg_pool)
+    if not authenticated:
+        return sanic.text("Unauthorized.", status=HTTPStatus.UNAUTHORIZED)
+
+    return None
+
+
+app.blueprint(api_v1)
+
+
 def db_maintenance_process(stop_event: EventType) -> None:
     asyncio.run(db_maintenance(stop_event))
 
@@ -542,4 +549,5 @@ async def main_process_stop(app_: App, _):
 
 if __name__ == "__main__":
     app.config.INSPECTOR = True
-    app.run(host="0.0.0.0", port=8080, debug=True, dev=True)
+    logger.level("DEBUG")
+    app.run(host="0.0.0.0", port=8080, debug=True, dev=True, access_log=True)
