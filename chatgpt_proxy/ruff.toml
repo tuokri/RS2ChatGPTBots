@@ -1,0 +1,2 @@
+[lint.extend-per-file-ignores]
+"chatgpt_proxy/**/tests/test*.py" = ["F811"]
