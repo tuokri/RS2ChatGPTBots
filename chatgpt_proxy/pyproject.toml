@@ -33,6 +33,7 @@ dev = [
     "mypy>=1.16.1",
     "pytest>=8.4.1",
     "pytest-asyncio>=1.0.0",
+    "pytest-loguru>=0.4.0",
     "respx>=0.22.0",
     "ruff>=0.12.0",
     "sanic-testing>=24.6.0",
@@ -61,5 +62,11 @@ ignore_missing_imports = true
 [[tool.mypy.overrides]]
 module = [
     "sanic_testing.*",
+]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = [
+    "pytest_loguru.*",
 ]
 ignore_missing_imports = true
