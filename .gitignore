@@ -460,3 +460,6 @@ FodyWeavers.xsd
 
 # JetBrains IDEs
 .idea/
+
+# Exclude from *.log
+!chatgpt_proxy/chatgpt_proxy/log
