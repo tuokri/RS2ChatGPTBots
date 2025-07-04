@@ -9,11 +9,12 @@ on:
 jobs:
   build:
 
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
     container: ubuntu:latest
     strategy:
       fail-fast: false
       matrix:
+        os: [ ubuntu-latest ]
         python-version: [ "3.13" ]
 
     env:
@@ -92,7 +93,14 @@ jobs:
       - name: Run pytest
         working-directory: ./chatgpt_proxy
         run: |
-          uv run pytest
+          uv run pytest -s --cov=chatgpt_proxy --cov-report html:cov_html
+
+      - name: Store test reports
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: pytest-coverage-html-${{ matrix.os }}-python-${{ matrix.python-version }}
+          path: chatgpt_proxy/cov_html
 
       - name: Minimize uv cache
         working-directory: ./chatgpt_proxy
