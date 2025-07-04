@@ -9,8 +9,10 @@ on:
 jobs:
   build:
 
+    # TODO: how would Windows testing work with the container setup?
+    #       Maybe just ignore it, and only test on Linux.
     runs-on: ${{ matrix.os }}
-    container: ubuntu:latest
+    container: ubuntu:latest  # TODO: or, can we parametrize this to also run on a Windows container?
     strategy:
       fail-fast: false
       matrix:
@@ -18,6 +20,7 @@ jobs:
         python-version: [ "3.13" ]
 
     env:
+      # Hostname equals service name below.
       DATABASE_URL: postgresql://postgres:postgres@postgres:5432/
 
     services:
@@ -44,7 +47,8 @@ jobs:
           apt install -y --no-install-recommends \
             ca-certificates \
             git \
-            jq
+            jq \
+            sqlite3
 
       - uses: actions/checkout@v4
 
