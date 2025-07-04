@@ -38,6 +38,7 @@ import respx
 from pytest_loguru.plugin import caplog  # noqa: F401
 from sanic.log import access_logger as sanic_access_logger
 from sanic.log import logger as sanic_logger
+from sanic_testing.reusable import ReusableClient
 
 _sanic_secret = "dummy"
 _db_url = "postgresql://postgres:postgres@localhost:5432"
@@ -135,7 +136,7 @@ sanic_access_logger.setLevel(logging.DEBUG)
 
 @pytest_asyncio.fixture
 async def api_fixture(
-) -> AsyncGenerator[tuple[App, respx.MockRouter, asyncpg.Connection]]:
+) -> AsyncGenerator[tuple[App, ReusableClient | None, respx.MockRouter, asyncpg.Connection]]:
     db_fixture_pool = await asyncpg.create_pool(
         dsn=_db_url,
         min_size=1,
@@ -222,7 +223,10 @@ async def api_fixture(
                     status_code=200,
                     json=response.model_dump(mode="json"),
                 ))
-            yield app, mock_router, conn
+            # TODO: use this for long running tests to speed them up?
+            # reusable_client = ReusableClient(app)
+            reusable_client = None
+            yield app, reusable_client, mock_router, conn
 
     async with pool_acquire(db_fixture_pool, timeout=_db_timeout) as conn:
         await conn.execute(
@@ -234,14 +238,10 @@ async def api_fixture(
 @pytest.mark.asyncio
 async def test_api_v1_post_game(api_fixture, caplog) -> None:
     caplog.set_level(logging.DEBUG)
-    api_app, mock_router, db_conn = api_fixture
+    api_app, reusable_client, mock_router, db_conn = api_fixture
 
     data = "VNTE-TestSuite\n7777"
     req, resp = await api_app.asgi_client.post("/api/v1/game", data=data)
-
-    print(f"{req.headers=}")
-    print(f"{resp.headers=}")
-
     assert resp.status == 201
 
     game_id, greeting = resp.text.split("\n")
@@ -250,14 +250,13 @@ async def test_api_v1_post_game(api_fixture, caplog) -> None:
     req, resp = await api_app.asgi_client.get(f"/api/v1/game/{game_id}")
     assert resp.status == 200
     game = resp.json
-    # pprint(game)
     assert game
 
 
 @pytest.mark.asyncio
 async def test_api_v1_post_game_invalid_token(api_fixture, caplog) -> None:
     caplog.set_level(logging.DEBUG)
-    api_app, mock_router, db_conn = api_fixture
+    api_app, reusable_client, mock_router, db_conn = api_fixture
 
     # No token.
     api_app.asgi_client.headers = {}
@@ -320,7 +319,7 @@ async def test_api_v1_post_game_chat_message(api_fixture, caplog) -> None:
     # TODO: maybe just parametrize this test.
 
     caplog.set_level(logging.DEBUG)
-    api_app, mock_router, db_conn = api_fixture
+    api_app, reusable_client, mock_router, db_conn = api_fixture
 
     path = "/api/v1/game/first_game/chat_message"
     data = "my name is dog69\n0\n0\nthis is the actual message!"
