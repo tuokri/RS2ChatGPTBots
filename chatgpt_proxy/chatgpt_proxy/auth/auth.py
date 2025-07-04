@@ -114,26 +114,36 @@ def check_game_owner(func: Callable) -> Callable:
     def decorator(f: Callable) -> Callable:
         @wraps(f)
         async def decorated_function(request: Request, game_id: str, *args, **kwargs) -> sanic.HTTPResponse:
-            async with (pool_acquire(request.app.ctx.pg_pool) as conn):
-                if ((request.ctx.jwt_game_server_address is None)
-                        or (request.ctx.jwt_game_server_port is None)
-                ):
-                    logger.debug(
-                        "cannot verify game owner: jwt_game_server_address={}, jwt_game_server_port={}",
-                        request.ctx.jwt_game_server_address,
-                        request.ctx.jwt_game_server_port
-                    )
-                    return sanic.HTTPResponse("Unauthorized.", status=HTTPStatus.UNAUTHORIZED)
+            if ((request.ctx.jwt_game_server_address is None)
+                    or (request.ctx.jwt_game_server_port is None)
+            ):
+                logger.debug(
+                    "cannot verify game owner: jwt_game_server_address={}, jwt_game_server_port={}",
+                    request.ctx.jwt_game_server_address,
+                    request.ctx.jwt_game_server_port
+                )
+                return sanic.HTTPResponse("Unauthorized.", status=HTTPStatus.UNAUTHORIZED)
 
+            async with (pool_acquire(request.app.ctx.pg_pool) as conn):
                 game = await queries.select_game(conn=conn, game_id=game_id)
                 if not game:
+                    logger.debug("no game found for game_id: {}", game_id)
                     return sanic.HTTPResponse(status=HTTPStatus.NOT_FOUND)
 
                 if game["game_server_address"] != request.ctx.jwt_game_server_address:
-                    # TODO: debug log.
+                    logger.debug(
+                        "unauthorized: token address != DB address: {} != {}",
+                        game["game_server_address"],
+                        request.ctx.jwt_game_server_address,
+                    )
                     return sanic.HTTPResponse("Unauthorized.", status=HTTPStatus.UNAUTHORIZED)
+
                 if game["game_server_port"] != request.ctx.jwt_game_server_port:
-                    # TODO: debug log.
+                    logger.debug(
+                        "unauthorized: token port != DB port: {} != {}",
+                        game["game_server_port"],
+                        request.ctx.jwt_game_server_port,
+                    )
                     return sanic.HTTPResponse("Unauthorized.", status=HTTPStatus.UNAUTHORIZED)
 
             response = f(request, game_id, *args, **kwargs)

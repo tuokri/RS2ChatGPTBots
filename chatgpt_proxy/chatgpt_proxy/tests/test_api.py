@@ -26,7 +26,6 @@ import ipaddress
 import logging
 import os
 from pathlib import Path
-from pprint import pprint
 from typing import AsyncGenerator
 
 import asyncpg
@@ -37,6 +36,8 @@ import pytest
 import pytest_asyncio
 import respx
 from pytest_loguru.plugin import caplog  # noqa: F401
+from sanic.log import access_logger as sanic_access_logger
+from sanic.log import logger as sanic_logger
 
 _sanic_secret = "dummy"
 _db_url = "postgresql://postgres:postgres@localhost:5432"
@@ -54,6 +55,7 @@ from chatgpt_proxy.common import App  # noqa: E402
 from chatgpt_proxy.db import pool_acquire  # noqa: E402
 from chatgpt_proxy.db import queries  # noqa: E402
 from chatgpt_proxy.log import logger  # noqa: E402
+from chatgpt_proxy.tests.client import SpoofedSanicASGITestClient  # noqa: E402
 from chatgpt_proxy.tests.monkey_patch import monkey_patch_sanic_testing  # noqa: E402
 from chatgpt_proxy.utils import utcnow  # noqa: E402
 
@@ -93,6 +95,42 @@ _token_sha256 = hashlib.sha256(_token.encode()).digest()
 _headers: dict[str, str] = {
     "Authorization": f"Bearer {_token}",
 }
+
+_token_bad_extra_metadata = jwt.encode(
+    key=_sanic_secret,
+    algorithm="HS256",
+    payload={
+        "iss": auth.jwt_issuer,
+        "aud": auth.jwt_audience,
+        "sub": f"{_game_server_address}:{_game_server_port}",
+        "iat": int(_iat.timestamp()),
+        "exp": int(_exp.timestamp()),
+        "whatthefuck": "hmm?",
+    },
+)
+_token_bad_extra_metadata_sha256 = hashlib.sha256(_token.encode()).digest()
+
+_forbidden_game_server_address = ipaddress.IPv4Address("88.99.12.1")
+_forbidden_game_server_port = 6969
+_token_for_forbidden_server = jwt.encode(
+    key=_sanic_secret,
+    algorithm="HS256",
+    payload={
+        "iss": auth.jwt_issuer,
+        "aud": auth.jwt_audience,
+        "sub": f"{_forbidden_game_server_address}:{_forbidden_game_server_port}",
+        "iat": int(_iat.timestamp()),
+        "exp": int(_exp.timestamp()),
+    },
+)
+_token_for_forbidden_server_sha256 = hashlib.sha256(
+    _token_for_forbidden_server.encode()).digest()
+
+# TODO: get access log to show up in pytest capture. This does not work.
+app.config.ACCESS_LOG = True
+app.config.OAS = False
+sanic_logger.setLevel(logging.DEBUG)
+sanic_access_logger.setLevel(logging.DEBUG)
 
 
 @pytest_asyncio.fixture
@@ -167,8 +205,16 @@ async def api_fixture(
                 game_server_port=_game_server_port,
                 name="pytest API key",
             )
+            await queries.insert_game_server_api_key(
+                conn=conn,
+                issued_at=_iat,
+                expires_at=_exp,
+                token_hash=_token_for_forbidden_server_sha256,
+                game_server_address=_forbidden_game_server_address,
+                game_server_port=_forbidden_game_server_port,
+                name="pytest API key (forbidden game server)",
+            )
 
-        app.config.ACCESS_LOG = True
         app.asgi_client.headers = _headers
         with respx.mock(base_url="https://api.openai.com/", assert_all_called=False) as mock_router:
             mock_router.post("/v1/responses").mock(
@@ -204,12 +250,75 @@ async def test_api_v1_post_game(api_fixture, caplog) -> None:
     req, resp = await api_app.asgi_client.get(f"/api/v1/game/{game_id}")
     assert resp.status == 200
     game = resp.json
-    pprint(game)  # TODO: remove?
+    # pprint(game)
     assert game
 
 
 @pytest.mark.asyncio
+async def test_api_v1_post_game_invalid_token(api_fixture, caplog) -> None:
+    caplog.set_level(logging.DEBUG)
+    api_app, mock_router, db_conn = api_fixture
+
+    # No token.
+    api_app.asgi_client.headers = {}
+    data = "VNTE-TestSuite\n7777"
+    req, resp = await api_app.asgi_client.post("/api/v1/game", data=data)
+    assert resp.status == 401
+
+    # Bad token.
+    api_app.asgi_client.headers = {
+        "Authorization": "Bearer aasddsadasasdadsadsdsaasdasdads"
+    }
+    data = "VNTE-TestSuite\n7777"
+    req, resp = await api_app.asgi_client.post("/api/v1/game", data=data)
+    assert resp.status == 401
+
+    # Good token with unwanted extra claims added
+    # -> token hash check mismatch with database-stored hash.
+    api_app.asgi_client.headers = {
+        "Authorization": f"Bearer {_token_bad_extra_metadata}"
+    }
+    data = "VNTE-TestSuite\n7777"
+    req, resp = await api_app.asgi_client.post("/api/v1/game", data=data)
+    assert resp.status == 401
+
+    # Token meant for another IP address (but exists in the DB).
+    api_app.asgi_client.headers = {
+        "Authorization": f"Bearer {_token_for_forbidden_server}",
+    }
+    data = "VNTE-ThisDoesntMatterLol\n7777"
+    req, resp = await api_app.asgi_client.post("/api/v1/game", data=data)
+    assert resp.status == 401
+
+    # Token meant for another IP address.
+    spoofed_asgi_client = SpoofedSanicASGITestClient(
+        app=api_app,
+        client_ip="6.0.28.175",
+    )
+    somebody_elses_token = jwt.encode(
+        key=_sanic_secret,
+        algorithm="HS256",
+        payload={
+            "iss": auth.jwt_issuer,
+            "aud": auth.jwt_audience,
+            "sub": "6.0.28.175:55555",  # Also, this does not exist in the DB.
+            "iat": int(_iat.timestamp()),
+            "exp": int(_exp.timestamp()),
+        },
+    )
+    spoofed_asgi_client.headers = {
+        "Authorization": f"Bearer {somebody_elses_token}",
+    }
+    data = "VNTE-TestSuite\n55555"
+    # noinspection PyTypeChecker
+    req, resp = await spoofed_asgi_client.post("/api/v1/game", data=data)
+    assert resp.status == 401
+
+
+@pytest.mark.asyncio
 async def test_api_v1_post_game_chat_message(api_fixture, caplog) -> None:
+    # TODO: maybe just parametrize this test.
+
     caplog.set_level(logging.DEBUG)
     api_app, mock_router, db_conn = api_fixture
 
@@ -227,3 +336,17 @@ async def test_api_v1_post_game_chat_message(api_fixture, caplog) -> None:
     data = "my name is dog69\n0\n0\nthis is the actual message!"
     req, resp = await api_app.asgi_client.post(path_forbidden, data=data)
     assert resp.status == 401
+
+    path = "/api/v1/game/first_game/chat_message"
+    invalid_data = "dsfsdsfdsffdsfsdsdf"
+    req, resp = await api_app.asgi_client.post(path, data=invalid_data)
+    assert resp.status == 400
+
+    path = "/api/v1/game/first_game/chat_message"
+    empty_data = ""
+    req, resp = await api_app.asgi_client.post(path, data=empty_data)
+    assert resp.status == 400
+
+    path = "/api/v1/game/first_game/chat_message"
+    req, resp = await api_app.asgi_client.post(path)  # No data.
+    assert resp.status == 400

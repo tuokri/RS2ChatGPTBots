@@ -417,7 +417,7 @@ async def post_game_chat_message(
                 )
     except Exception as e:
         logger.debug("failed to parse chat message data", type(e).__name__, e)
-        return sanic.HTTPResponse(HTTPStatus.BAD_REQUEST)
+        return sanic.HTTPResponse(status=HTTPStatus.BAD_REQUEST)
 
     return sanic.HTTPResponse(
         status=HTTPStatus.NO_CONTENT,
