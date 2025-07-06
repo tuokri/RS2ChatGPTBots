@@ -970,7 +970,7 @@ function PutGameObjectiveState()
     ROGRI = ROGameReplicationInfo(WorldInfo.Game.GameReplicationInfo);
     if (ROGRI == None)
     {
-        `cbgwarn("unable to get ROGameReplicationInfo");
+        `cgbwarn("unable to get ROGameReplicationInfo");
         return;
     }
 
