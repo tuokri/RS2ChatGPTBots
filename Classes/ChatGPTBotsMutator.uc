@@ -514,6 +514,45 @@ function DeleteGamePlayer_OnSendRequestHeaders(HttpSock Sender)
     ClearTimer(NameOf(CancelOpenLink));
 }
 
+// ---------------------------------------------------------------------------
+// PutGameObjectiveState delegates. ------------------------------------------
+// ---------------------------------------------------------------------------
+
+function PutGameObjectiveState_OnComplete(HttpSock Sender)
+{
+    FinishRequest();
+}
+
+function PutGameObjectiveState_OnReturnCode(HttpSock Sender, int ReturnCode, string ReturnMessage, string HttpVer)
+{
+    // NOTE: request may still be ongoing after this!
+    ClearTimer(NameOf(CancelOpenLink));
+    `cgbdebug("HTTP request:" @ ReturnCode @ ReturnMessage);
+}
+
+function PutGameObjectiveState_OnResolveFailed(HttpSock Sender, string Hostname)
+{
+    `cgberror("resolve failed for hostname:" @ Hostname);
+    FinishRequest();
+}
+
+function PutGameObjectiveState_OnConnectionTimeout(HttpSock Sender)
+{
+    `cgberror(Sender @ "connection timed out");
+    FinishRequest();
+}
+
+function PutGameObjectiveState_OnConnectError(HttpSock Sender)
+{
+    `cgberror(Sender @ "connection failed");
+    FinishRequest();
+}
+
+function PutGameObjectiveState_OnSendRequestHeaders(HttpSock Sender)
+{
+    ClearTimer(NameOf(CancelOpenLink));
+}
+
 function OverrideBroadcastHandler()
 {
     // TODO: can this cause conflict between client and server?
@@ -907,6 +946,55 @@ function PostGameKill(Controller Killer, Controller Victim)
     Req.OnConnectionTimeout = PostGameKill_OnConnectionTimeout;
     Req.OnConnectError = PostGameKill_OnConnectError;
     Req.OnSendRequestHeaders = PostGameKill_OnSendRequestHeaders;
+
+    RequestQueue.AddItem(Req);
+    if (!IsTimerActive(NameOf(ProcessRequestQueue)))
+    {
+        SetTimer(0.001, False, NameOf(ProcessRequestQueue));
+    }
+}
+
+function PutGameObjectiveState()
+{
+    local Request Req;
+    local string PutData;
+    local int i;
+    local ROGameReplicationInfo ROGRI;
+
+    if (GameId == "")
+    {
+        `cgbwarn("attempted to put game objective state without GameId");
+        return;
+    }
+
+    ROGRI = ROGameReplicationInfo(WorldInfo.Game.GameReplicationInfo);
+    if (ROGRI == None)
+    {
+        `cbgwarn("unable to get ROGameReplicationInfo");
+        return;
+    }
+
+    PutData = "[";
+    for (i = 0; i < ROGRI.Objectives.Length; ++i)
+    {
+        PutData $= "(" $ ROGRI.Objectives[i].ObjName $ "," $ int(ROGRI.Objectives[i].ObjState) $ ")";
+
+        if (i < ROGRI.Objectives.Length - 1)
+        {
+            PutData $= ",";
+        }
+    }
+    PutData $= "]";
+
+    Req.Url = Config.ApiUrl $ "game/" $ GameId $ "/objective_state";
+    Req.Data = PutData;
+    Req.Verb = Verb_Put;
+    Req.OnComplete = PutGameObjectiveState_OnComplete;
+    Req.OnReturnCode = PutGameObjectiveState_OnReturnCode;
+    Req.OnResolveFailed = PutGameObjectiveState_OnResolveFailed;
+    Req.OnConnectionTimeout = PutGameObjectiveState_OnConnectionTimeout;
+    Req.OnConnectError = PutGameObjectiveState_OnConnectError;
+    Req.OnSendRequestHeaders = PutGameObjectiveState_OnSendRequestHeaders;
 
     RequestQueue.AddItem(Req);
     if (!IsTimerActive(NameOf(ProcessRequestQueue)))
