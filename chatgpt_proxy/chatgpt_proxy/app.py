@@ -446,7 +446,7 @@ async def put_game_objective_state(
 
     # TODO: maybe do proper relative DB design for this if needed?
     #       Right now it is done the quick and dirty way on purpose.
-    # [["Objective A", "North"], ["Objective B", "Neutral"], ...]
+    # [["Objective A","North"],["Objective B","Neutral"],...]
     try:
         data = request.body.decode("utf-8")
         objs: list[list[str]] = ast.literal_eval(data)
