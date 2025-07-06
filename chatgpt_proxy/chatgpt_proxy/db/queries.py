@@ -28,6 +28,8 @@ from asyncpg import Record
 from pypika import Query
 from pypika import Table
 
+from chatgpt_proxy.db import models
+
 _default_conn_timeout = 15.0
 
 
@@ -105,8 +107,8 @@ async def select_game(
         conn: Connection,
         game_id: str,
         timeout: float | None = _default_conn_timeout,
-) -> Record | None:
-    return await conn.fetchrow(
+) -> models.Game | None:
+    record = await conn.fetchrow(
         """
         SELECT *
         FROM "game"
@@ -115,6 +117,11 @@ async def select_game(
         game_id,
         timeout=timeout,
     )
+
+    if record:
+        return models.Game(**record)
+
+    return None
 
 
 async def upsert_game_objective_state(

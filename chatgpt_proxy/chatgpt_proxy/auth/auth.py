@@ -110,10 +110,10 @@ async def check_token(request: Request, pg_pool: asyncpg.Pool) -> bool:
     return True
 
 
-def check_game_owner(func: Callable) -> Callable:
+def check_and_inject_game(func: Callable) -> Callable:
     def decorator(f: Callable) -> Callable:
         @wraps(f)
-        async def decorated_function(request: Request, game_id: str, *args, **kwargs) -> sanic.HTTPResponse:
+        async def game_owner_checked_handler(request: Request, game_id: str, *args, **kwargs) -> sanic.HTTPResponse:
             if ((request.ctx.jwt_game_server_address is None)
                     or (request.ctx.jwt_game_server_port is None)
             ):
@@ -130,27 +130,29 @@ def check_game_owner(func: Callable) -> Callable:
                     logger.debug("no game found for game_id: {}", game_id)
                     return sanic.HTTPResponse(status=HTTPStatus.NOT_FOUND)
 
-                if game["game_server_address"] != request.ctx.jwt_game_server_address:
+                if game.game_server_address != request.ctx.jwt_game_server_address:
                     logger.debug(
                         "unauthorized: token address != DB address: {} != {}",
-                        game["game_server_address"],
+                        game.game_server_address,
                         request.ctx.jwt_game_server_address,
                     )
                     return sanic.HTTPResponse("Unauthorized.", status=HTTPStatus.UNAUTHORIZED)
 
-                if game["game_server_port"] != request.ctx.jwt_game_server_port:
+                if game.game_server_port != request.ctx.jwt_game_server_port:
                     logger.debug(
                         "unauthorized: token port != DB port: {} != {}",
-                        game["game_server_port"],
+                        game.game_server_port,
                         request.ctx.jwt_game_server_port,
                     )
                     return sanic.HTTPResponse("Unauthorized.", status=HTTPStatus.UNAUTHORIZED)
+
+                request.ctx.game = game
 
             response = f(request, game_id, *args, **kwargs)
             if isawaitable(response):
                 return await response
             return response
 
-        return decorated_function
+        return game_owner_checked_handler
 
     return decorator(func)

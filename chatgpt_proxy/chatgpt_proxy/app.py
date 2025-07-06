@@ -25,6 +25,7 @@
 
 import ast
 import asyncio
+import dataclasses
 import datetime
 import multiprocessing as mp
 import os
@@ -40,10 +41,11 @@ from sanic import Blueprint
 from sanic.response import HTTPResponse
 
 from chatgpt_proxy.auth import auth
-from chatgpt_proxy.auth import check_game_owner
+from chatgpt_proxy.auth import check_and_inject_game
 from chatgpt_proxy.common import App
 from chatgpt_proxy.common import Context
 from chatgpt_proxy.common import Request
+from chatgpt_proxy.db import models
 from chatgpt_proxy.db import pool_acquire
 from chatgpt_proxy.db import queries
 from chatgpt_proxy.log import logger
@@ -150,14 +152,14 @@ async def get_game(
         if not db_game:
             return HTTPResponse(status=HTTPStatus.NOT_FOUND)
 
-        game = dict(db_game)
-        game["start_time"] = game["start_time"].isoformat()
-        stop_time = game["stop_time"]
+        game_dict = dataclasses.asdict(db_game)
+        game_dict["start_time"] = db_game.start_time.isoformat()
+        stop_time = db_game.stop_time
         if stop_time:
-            game["stop_time"] = stop_time.isoformat()
-        game["game_server_address"] = str(game["game_server_address"])
+            game_dict["stop_time"] = stop_time.isoformat()
+        game_dict["game_server_address"] = str(db_game.game_server_address)
 
-        return sanic.json(game)
+        return sanic.json(game_dict)
 
 
 @api_v1.post("/game")
@@ -222,7 +224,7 @@ async def post_game(
 
 
 @api_v1.put("/game/<game_id:str>")
-@check_game_owner
+@check_and_inject_game
 async def put_game(
         request: Request,
         game_id: str,
@@ -244,7 +246,7 @@ async def put_game(
         )
         if not game:
             return HTTPResponse(status=HTTPStatus.NOT_FOUND)
-        start_time: datetime.datetime = game["start_time"]
+        start_time = game.start_time
 
     try:
         world_time = float(request.body.decode("utf-8"))
@@ -265,7 +267,7 @@ async def put_game(
 
 
 @api_v1.post("/game/<game_id:str>/message")
-@check_game_owner
+@check_and_inject_game
 async def post_game_message(
         request: Request,
         game_id: str,
@@ -280,8 +282,8 @@ async def post_game_message(
         if not game:
             return HTTPResponse(status=HTTPStatus.NOT_FOUND)
 
-        previous_response_id: str = game["openai_previous_response_id"]
-        level: str = game["level"]
+        previous_response_id: str | None = game.openai_previous_response_id
+        level: str = game.level
 
         # TODO: if openai_previous_response_id is None, should we just
         #       bail here? Or just continue anyway, but log a warning?
@@ -308,8 +310,8 @@ async def post_game_message(
                 conn=conn,
                 game_id=game_id,
                 time=utcnow(),
-                game_server_address=game["game_server_address"],
-                game_server_port=game["game_server_port"],
+                game_server_address=game.game_server_address,
+                game_server_port=game.game_server_port,
                 request_length=len(prompt),
                 response_length=len(resp.output_text),
             )
@@ -323,18 +325,15 @@ async def post_game_message(
 
 
 @api_v1.post("/game/<game_id:str>/kill")
-@check_game_owner
+@check_and_inject_game
 async def post_game_kill(
         request: Request,
         game_id: str,
         pg_pool: asyncpg.Pool,
 ) -> HTTPResponse:
-    async with pool_acquire(pg_pool) as conn:
-        if not await queries.game_exists(conn, game_id):
-            return HTTPResponse(status=HTTPStatus.NOT_FOUND)
-
-    # TODO: get game's start date!
-    #       - queries.select_game() or queries.select_game_start_time()
+    # TODO: it should be guaranteed game is not None after check_and_inject_game.
+    #       Is there a way make mypy understand this without suppressing the check here?
+    game: models.Game = request.ctx.game  # type: ignore[assignment]
 
     try:
         parts = request.body.decode("utf-8").split("\n")
@@ -345,15 +344,17 @@ async def post_game_kill(
         victim_team = Team(parts[4])
         damage_type = parts[5]
         kill_distance_m = float(parts[6])
-    except Exception as TODO:
-        # TODO: log it?
+
+        kill_time = game.start_time + datetime.timedelta(seconds=world_time)
+    except Exception as e:
+        logger.debug("failed to parse game kill data: {}: {}", type(e).__name__, e)
         return sanic.HTTPResponse(HTTPStatus.BAD_REQUEST)
 
     async with pool_acquire(pg_pool) as conn:
         await queries.insert_game_kill(
             conn=conn,
             game_id=game_id,
-            kill_time=0,  # TODO,
+            kill_time=kill_time,
             killer_name=killer_name,
             victim_name=victim_name,
             killer_team=int(killer_team),
@@ -366,29 +367,31 @@ async def post_game_kill(
 
 
 @api_v1.post("/game/<game_id:str>/player/<player_id:int>")
-@check_game_owner
+@check_and_inject_game
 async def put_game_player(
         request: Request,
         game_id: str,
         player_id: int,
         pg_pool: asyncpg.Pool,
 ) -> HTTPResponse:
-    async with pool_acquire(pg_pool) as conn:
-        if not await queries.game_exists(conn, game_id):
-            return HTTPResponse(status=HTTPStatus.NOT_FOUND)
-
     try:
         parts = request.body.decode("utf-8").split("\n")
-    except Exception as TODO:
-        # TODO: log it?
+    except Exception as e:
+        logger.debug("failed to parse game player data: {}: {}", type(e).__name__, e)
         return sanic.HTTPResponse(HTTPStatus.BAD_REQUEST)
+
+    async with pool_acquire(pg_pool) as conn:
+        async with conn.transaction():
+            pass
+            # TODO:
+            # await queries.upsert_game_player()
 
     # TODO: if player exists, send NO_CONTENT, otherwise CREATED.
     return sanic.HTTPResponse(status=HTTPStatus.NO_CONTENT)
 
 
 @api_v1.post("/game/<game_id:str>/chat_message")
-@check_game_owner
+@check_and_inject_game
 async def post_game_chat_message(
         request: Request,
         game_id: str,
@@ -427,7 +430,7 @@ async def post_game_chat_message(
 
 
 @api_v1.put("/game/<game_id:str>/objective_state")
-@check_game_owner
+@check_and_inject_game
 async def put_game_objective_state(
         request: Request,
         game_id: str,

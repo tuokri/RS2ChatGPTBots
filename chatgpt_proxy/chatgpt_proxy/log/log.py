@@ -21,6 +21,7 @@
 # SOFTWARE.
 
 # TODO: set up the usual stuff, log levels, etc.
+# TODO: we'll probably want to inject Sanic client IP/port in this logger too?
 
 from loguru import logger
 

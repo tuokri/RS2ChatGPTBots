@@ -19,6 +19,7 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
+
 import ipaddress
 from types import SimpleNamespace
 from typing import TypeAlias
@@ -26,6 +27,8 @@ from typing import TypeAlias
 import asyncpg
 import openai
 import sanic
+
+from chatgpt_proxy.db import models
 
 
 # TODO: rethink module organization.
@@ -39,7 +42,7 @@ class Context(SimpleNamespace):
 class RequestContext(SimpleNamespace):
     jwt_game_server_address: ipaddress.IPv4Address | None = None
     jwt_game_server_port: int | None = None
-    # TODO: inject game object here too?
+    game: models.Game | None = None
 
 
 App: TypeAlias = sanic.Sanic[sanic.Config, Context]

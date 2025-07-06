@@ -20,40 +20,19 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-import httpx
-from sanic import Sanic
-from sanic_testing.testing import ASGI_BASE_URL
-from sanic_testing.testing import ASGI_HOST
-from sanic_testing.testing import ASGI_PORT
-from sanic_testing.testing import SanicASGITestClient
-from sanic_testing.testing import app_call_with_return
+# Read-only models for our "ad-hoc ORM".
+
+import datetime
+import ipaddress
+from dataclasses import dataclass
 
 
-class SpoofedSanicASGITestClient(SanicASGITestClient):
-    # noinspection PyUnusedLocal
-    def __init__(
-            self,
-            app: Sanic,
-            base_url: str = ASGI_BASE_URL,
-            suppress_exceptions: bool = False,
-            client_ip: str | None = None,
-    ):
-        Sanic.test_mode = True
-
-        app.__class__.__call__ = app_call_with_return  # type: ignore[method-assign]
-        app.asgi = True
-
-        self.sanic_app = app
-
-        if client_ip is None:
-            client_ip = ASGI_HOST
-
-        transport = httpx.ASGITransport(
-            app=app,
-            client=(client_ip, ASGI_PORT),
-        )
-
-        super(SanicASGITestClient, self).__init__(transport=transport, base_url=base_url)
-
-        self.gather_request = True
-        self.last_request = None
+@dataclass(slots=True, frozen=True)
+class Game:
+    id: str
+    level: str
+    start_time: datetime.datetime
+    game_server_address: ipaddress.IPv4Address
+    game_server_port: int
+    stop_time: datetime.datetime | None = None
+    openai_previous_response_id: str | None = None

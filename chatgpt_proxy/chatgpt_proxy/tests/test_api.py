@@ -134,6 +134,26 @@ sanic_logger.setLevel(logging.DEBUG)
 sanic_access_logger.setLevel(logging.DEBUG)
 
 
+# TODO: add this back later if the crash with ReusableClient is resolved.
+# def client_post(
+#         client: ReusableClient,
+#         url: str | httpx.URL,
+#         *args,
+#         headers: dict | None = None,
+#         data: Any | None = None,
+#         **kwargs,
+# ) -> httpx.Response:
+#     if headers is None:
+#         headers = _headers
+#     return client.post(
+#         url,
+#         *args,
+#         headers=headers,
+#         data=data,
+#         **kwargs,
+#     )
+
+
 @pytest_asyncio.fixture
 async def api_fixture(
 ) -> AsyncGenerator[tuple[App, ReusableClient | None, respx.MockRouter, asyncpg.Connection]]:
@@ -217,14 +237,17 @@ async def api_fixture(
             )
 
         app.asgi_client.headers = _headers
-        with respx.mock(base_url="https://api.openai.com/", assert_all_called=False) as mock_router:
+        with respx.mock(
+                base_url="https://api.openai.com/",
+                assert_all_called=False,
+        ) as mock_router:
             mock_router.post("/v1/responses").mock(
                 return_value=httpx.Response(
                     status_code=200,
                     json=response.model_dump(mode="json"),
                 ))
-            # TODO: use this for long running tests to speed them up?
-            # reusable_client = ReusableClient(app)
+            # TODO: this crashes and nest-asyncio does not work! Try to fix later!
+            # reusable_client = ReusableClient(app, asyncio.get_event_loop())
             reusable_client = None
             yield app, reusable_client, mock_router, conn
 
