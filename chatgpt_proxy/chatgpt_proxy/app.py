@@ -252,7 +252,7 @@ async def put_game(
         world_time = float(request.body.decode("utf-8"))
         stop_time = start_time + datetime.timedelta(seconds=world_time)
     except Exception as e:
-        logger.debug("error parsing game data", type(e).__name__, e)
+        logger.debug("error parsing game data: {}: {}", type(e).__name__, e)
         return HTTPResponse(HTTPStatus.BAD_REQUEST)
 
     async with pool_acquire(pg_pool) as conn:
@@ -419,7 +419,7 @@ async def post_game_chat_message(
                     channel=int(say_type),
                 )
     except Exception as e:
-        logger.debug("failed to parse chat message data", type(e).__name__, e)
+        logger.debug("failed to parse chat message data: {}: {}", type(e).__name__, e)
         return sanic.HTTPResponse(status=HTTPStatus.BAD_REQUEST)
 
     return sanic.HTTPResponse(
@@ -454,7 +454,7 @@ async def put_game_objective_state(
         if t is not list:
             raise ValueError(f"expected list type, got {t}")
     except Exception as e:
-        logger.debug("error parsing objectives data", type(e).__name__, e)
+        logger.debug("error parsing objectives data: {}: {}", type(e).__name__, e)
         return HTTPResponse(status=HTTPStatus.BAD_REQUEST)
 
     async with pool_acquire(pg_pool) as conn:
