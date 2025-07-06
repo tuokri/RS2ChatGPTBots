@@ -24,14 +24,15 @@ class ChatGPTBotsMutator extends ROMutator
     config(Mutator_ChatGPTBots)
     dependson(HttpSock);
 
-// TODO: add way to hook into in game chat messages.
+// TODO: primary features:
 //   * Some sort of logic on when to actually send messages to the proxy server.
 //   * Which bots do we use to broadcast in game messages? Should we use actual
 //     bots or just some sort of proxy actor?
 //   * Prefixed chat commands? For example with "!bot bla bla blu blu".
 
-// TODO: make generic versions of HttpSock delegates that are duplicated for
-//       all requests!
+// TODO: do we need to send regular PutGamePlayer messages to keep the proxy-server-side
+//       "scoreboard" i.e. player list up to date? E.g., invoke PutGamePlayer for all
+//       players in the game every 10 seconds or so?
 
 // TODO: give the LLM a max message length. Check what is best suitable.
 const MAX_MESSAGE_LENGTH = 260;
