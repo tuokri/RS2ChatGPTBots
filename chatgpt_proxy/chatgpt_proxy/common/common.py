@@ -42,7 +42,17 @@ class Context(SimpleNamespace):
 class RequestContext(SimpleNamespace):
     jwt_game_server_address: ipaddress.IPv4Address | None = None
     jwt_game_server_port: int | None = None
-    game: models.Game | None = None
+    _game: models.Game | None = None
+
+    @property
+    def game(self) -> models.Game:
+        if self._game is None:
+            raise RuntimeError("RequestContext game is None")
+        return self._game
+
+    @game.setter
+    def game(self, value: models.Game):
+        self._game = value
 
 
 App: TypeAlias = sanic.Sanic[sanic.Config, Context]

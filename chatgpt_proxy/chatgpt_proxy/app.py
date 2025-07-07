@@ -45,7 +45,6 @@ from chatgpt_proxy.auth import check_and_inject_game
 from chatgpt_proxy.common import App
 from chatgpt_proxy.common import Context
 from chatgpt_proxy.common import Request
-from chatgpt_proxy.db import models
 from chatgpt_proxy.db import pool_acquire
 from chatgpt_proxy.db import queries
 from chatgpt_proxy.log import logger
@@ -191,6 +190,7 @@ async def post_game(
                 game_server_port=game_port,
                 start_time=now,
                 stop_time=None,
+                openai_previous_response_id=None,
             )
 
         # TODO: we need to do an OpenAI query here. We send initial
@@ -210,6 +210,7 @@ async def post_game(
                 game_server_port=game_port,
                 request_length=len(prompt),
                 response_length=len(openai_resp.output_text),
+                openai_response_id=openai_resp.id,
             )
 
     greeting = openai_resp.output_text
@@ -274,23 +275,23 @@ async def post_game_message(
         pg_pool: asyncpg.Pool,
         client: openai.AsyncOpenAI,
 ) -> HTTPResponse:
-    # Validation: valid JWT, correct IP, correct port, request actually
-    # comes from the correct IP. These should match the game_id!
+    game = request.ctx.game
+
+    previous_response_id: str | None = game.openai_previous_response_id
+    if previous_response_id is None:
+        logger.warning("unable to handle request for game with no openai_previous_response_id")
+        return HTTPResponse(status=HTTPStatus.SERVICE_UNAVAILABLE)
+
+    level: str = game.level
 
     async with pool_acquire(pg_pool) as conn:
-        game = await queries.select_game(conn, game_id)
-        if not game:
-            return HTTPResponse(status=HTTPStatus.NOT_FOUND)
-
-        previous_response_id: str | None = game.openai_previous_response_id
-        level: str = game.level
-
-        # TODO: if openai_previous_response_id is None, should we just
-        #       bail here? Or just continue anyway, but log a warning?
-
-        # TODO: we need to keep track of which kills and messages have
-        #       already been sent to ChatGPT? Just use send_time and
-        #       kill_time variables?
+        previous_query = await queries.select_openai_query(
+            conn=conn,
+            openai_query_id=previous_response_id,
+        )
+        prev_query_time = previous_query.time
+        # TODO: pick which kills and chat messages we should inject
+        #       into the prompt based on the timestamp.
 
         data_in = request.body.decode("utf-8").split("\n")
         say_type = SayType(data_in[0])
@@ -314,6 +315,7 @@ async def post_game_message(
                 game_server_port=game.game_server_port,
                 request_length=len(prompt),
                 response_length=len(resp.output_text),
+                openai_response_id=resp.id,
             )
 
     resp_data = f"{say_type}\n{say_team}\n{say_name}\nMESSAGE"  # TODO
@@ -331,9 +333,7 @@ async def post_game_kill(
         game_id: str,
         pg_pool: asyncpg.Pool,
 ) -> HTTPResponse:
-    # TODO: it should be guaranteed game is not None after check_and_inject_game.
-    #       Is there a way make mypy understand this without suppressing the check here?
-    game: models.Game = request.ctx.game  # type: ignore[assignment]
+    game = request.ctx.game
 
     try:
         parts = request.body.decode("utf-8").split("\n")
@@ -374,6 +374,8 @@ async def put_game_player(
         player_id: int,
         pg_pool: asyncpg.Pool,
 ) -> HTTPResponse:
+    _ = request.ctx.game  # TODO: needed here?
+
     try:
         parts = request.body.decode("utf-8").split("\n")
     except Exception as e:
@@ -397,9 +399,7 @@ async def post_game_chat_message(
         game_id: str,
         pg_pool: asyncpg.Pool,
 ) -> HTTPResponse:
-    async with pool_acquire(pg_pool) as conn:
-        if not await queries.game_exists(conn, game_id):
-            return HTTPResponse(status=HTTPStatus.NOT_FOUND)
+    _ = request.ctx.game  # TODO: needed here?
 
     try:
         parts = request.body.decode("utf-8").split("\n")
@@ -440,9 +440,7 @@ async def put_game_objective_state(
     if len(request.body) > 2000:
         return sanic.HTTPResponse(status=HTTPStatus.BAD_REQUEST)
 
-    async with pool_acquire(pg_pool) as conn:
-        if not await queries.game_exists(conn, game_id):
-            return HTTPResponse(status=HTTPStatus.NOT_FOUND)
+    _ = request.ctx.game  # TODO: needed here?
 
     # TODO: maybe do proper relative DB design for this if needed?
     #       Right now it is done the quick and dirty way on purpose.

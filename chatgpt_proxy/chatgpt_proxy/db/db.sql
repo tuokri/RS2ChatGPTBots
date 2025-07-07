@@ -49,6 +49,7 @@ CREATE TABLE IF NOT EXISTS "game"
 -- Intentionally not tied to player ID, since the "game_player" table
 -- represents the latest known game state (scoreboard), NOT all current
 -- and past players of the game session.
+-- TODO: should this be a hypertable?
 CREATE TABLE IF NOT EXISTS "game_chat_message"
 (
     id          BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
@@ -64,6 +65,7 @@ CREATE TABLE IF NOT EXISTS "game_chat_message"
 
 -- Kills scored during a game session. Similar to "game_chat_message",
 -- this is not tied to specific player IDs on purpose.
+-- TODO: should this be a hypertable?
 CREATE TABLE IF NOT EXISTS "game_kill"
 (
     id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
@@ -109,6 +111,7 @@ CREATE TABLE IF NOT EXISTS "openai_query"
     game_server_port    INTEGER     NOT NULL,
     request_length      INTEGER     NOT NULL,
     response_length     INTEGER     NOT NULL,
+    openai_response_id  TEXT        NOT NULL,
 
     FOREIGN KEY (game_id) REFERENCES game (id)
 );

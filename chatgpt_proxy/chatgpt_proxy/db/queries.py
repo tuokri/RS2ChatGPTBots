@@ -51,13 +51,15 @@ async def insert_game(
         game_server_port: int,
         start_time: datetime.datetime,
         stop_time: datetime.datetime | None = None,
+        openai_previous_response_id: str | None = None,
         timeout: float | None = _default_conn_timeout,
 ):
     await conn.execute(
         """
         INSERT INTO "game"
-        (id, level, start_time, stop_time, game_server_address, game_server_port)
-        VALUES ($1, $2, $3, $4, $5, $6);
+        (id, level, start_time, stop_time, game_server_address,
+         game_server_port, openai_previous_response_id)
+        VALUES ($1, $2, $3, $4, $5, $6, $7);
         """,
         game_id,
         level,
@@ -65,6 +67,7 @@ async def insert_game(
         stop_time,
         game_server_address,
         game_server_port,
+        openai_previous_response_id,
         timeout=timeout,
     )
 
@@ -239,6 +242,28 @@ async def delete_old_api_keys(
     )
 
 
+async def select_openai_query(
+        conn: Connection,
+        openai_query_id: str,
+        timeout: float | None = _default_conn_timeout,
+) -> models.OpenAIQuery | None:
+    """NOTE: for now, assuming we only want to select by openai_query_id."""
+    record = await conn.fetchrow(
+        """
+        SELECT *
+        FROM "openai_query"
+        WHERE openai_query = $1;
+        """,
+        openai_query_id,
+        timeout=timeout,
+    )
+
+    if not record:
+        return None
+
+    return models.OpenAIQuery(**record)
+
+
 async def insert_openai_query(
         conn: Connection,
         game_id: str,
@@ -247,13 +272,15 @@ async def insert_openai_query(
         game_server_port: int,
         request_length: int,
         response_length: int,
+        openai_response_id: str,
         timeout: float | None = _default_conn_timeout,
 ) -> None:
     await conn.execute(
         """
         INSERT INTO "openai_query"
-        (game_id, time, game_server_address, game_server_port, request_length, response_length)
-        VALUES ($1, $2, $3, $4, $5, $6);
+        (game_id, time, game_server_address,
+         game_server_port, request_length, response_length, openai_response_id)
+        VALUES ($1, $2, $3, $4, $5, $6, $7);
         """,
         game_id,
         time,
@@ -261,6 +288,7 @@ async def insert_openai_query(
         game_server_port,
         request_length,
         response_length,
+        openai_response_id,
         timeout=timeout,
     )
 
@@ -283,7 +311,6 @@ async def insert_openai_query(
 #         response_length,
 #         timeout=timeout,
 #     )
-
 
 async def insert_game_chat_message(
         conn: Connection,

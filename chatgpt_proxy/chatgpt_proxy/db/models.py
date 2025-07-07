@@ -36,3 +36,14 @@ class Game:
     game_server_port: int
     stop_time: datetime.datetime | None = None
     openai_previous_response_id: str | None = None
+
+
+@dataclass(slots=True, frozen=True)
+class OpenAIQuery:
+    time: datetime.datetime
+    game_id: str
+    game_server_address: ipaddress.IPv4Address
+    game_server_port: int
+    request_length: int
+    response_length: int
+    openai_response_id: str
