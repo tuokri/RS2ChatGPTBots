@@ -289,6 +289,10 @@ async def post_game_message(
             conn=conn,
             openai_query_id=previous_response_id,
         )
+        if not previous_query:
+            logger.warning("cannot find OpenAI query for id: {}", previous_response_id)
+            return HTTPResponse(status=HTTPStatus.SERVICE_UNAVAILABLE)
+
         prev_query_time = previous_query.time
         # TODO: pick which kills and chat messages we should inject
         #       into the prompt based on the timestamp.
@@ -444,13 +448,26 @@ async def put_game_objective_state(
 
     # TODO: maybe do proper relative DB design for this if needed?
     #       Right now it is done the quick and dirty way on purpose.
-    # [["Objective A","North"],["Objective B","Neutral"],...]
+    # [("Objective A",0),("Objective B",1),...]
     try:
         data = request.body.decode("utf-8")
-        objs: list[list[str]] = ast.literal_eval(data)
-        t = type(objs)  # NOTE: skipping nested type checks.
+        objs: list[tuple[str, int]] = ast.literal_eval(data)
+
+        t = type(objs)
         if t is not list:
-            raise ValueError(f"expected list type, got {t}")
+            raise ValueError(f"objs: expected list type, got {t}")
+
+        db_objs = []
+        for obj_name, obj_state in objs:
+            if type(obj_name) is not str:
+                raise ValueError(f"obj_name: expected str type, got {type(obj_name)}")
+            if type(obj_state) is not int:
+                raise ValueError(f"obj_state: expected int type, got {type(obj_state)}")
+
+            obj_state_enum = Team(str(obj_state))
+
+            db_objs.append([obj_name, str(obj_state_enum)])
+
     except Exception as e:
         logger.debug("error parsing objectives data: {}: {}", type(e).__name__, e)
         return HTTPResponse(status=HTTPStatus.BAD_REQUEST)
@@ -460,7 +477,7 @@ async def put_game_objective_state(
             await queries.upsert_game_objective_state(
                 conn=conn,
                 game_id=game_id,
-                objectives=objs,
+                objectives=db_objs,
             )
 
     return sanic.HTTPResponse(status=HTTPStatus.NO_CONTENT)
@@ -503,7 +520,10 @@ async def db_maintenance(stop_event: EventType) -> None:
                     logger.info("delete_completed_games: {}", result)
 
                 async with conn.transaction():
-                    result = await queries.delete_old_api_keys(conn, leeway=api_key_deletion_leeway)
+                    result = await queries.delete_old_api_keys(
+                        conn,
+                        leeway=api_key_deletion_leeway,
+                    )
                     logger.info("delete_old_api_keys: {}", result)
 
     except KeyboardInterrupt:
