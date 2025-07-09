@@ -977,7 +977,7 @@ function PutGameObjectiveState()
     PutData = "[";
     for (i = 0; i < ROGRI.Objectives.Length; ++i)
     {
-        PutData $= "(" $ ROGRI.Objectives[i].ObjName $ "," $ int(ROGRI.Objectives[i].ObjState) $ ")";
+        PutData $= "(\"" $ ROGRI.Objectives[i].ObjName $ "\"," $ int(ROGRI.Objectives[i].ObjState) $ ")";
 
         if (i < ROGRI.Objectives.Length - 1)
         {
