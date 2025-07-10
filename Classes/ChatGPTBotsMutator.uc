@@ -891,7 +891,7 @@ function PutGamePlayer(Controller Player)
     Req.Url = Config.ApiUrl $ "game/" $ GameId $ "/player/" $ Player.PlayerReplicationInfo.PlayerID;
     Req.Data = Player.PlayerReplicationInfo.PlayerName $ "\n"
         $ Player.PlayerReplicationInfo.Team.TeamIndex $ "\n"
-        $ Player.PlayerReplicationInfo.Score;
+        $ int(Player.PlayerReplicationInfo.Score);
     Req.Verb = Verb_Post;
     Req.OnComplete = PutGamePlayer_OnComplete;
     Req.OnReturnCode = PutGamePlayer_OnReturnCode;
