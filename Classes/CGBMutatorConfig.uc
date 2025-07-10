@@ -20,6 +20,7 @@
  * SOFTWARE.
  */
 
+// Separate config class to allow shipping a static config for ChatGPTBotsMutator.
 class CGBMutatorConfig extends Object
     config(Mutator_ChatGPTBotsConfig)
     abstract
