@@ -244,17 +244,17 @@ async def delete_old_api_keys(
 
 async def select_openai_query(
         conn: Connection,
-        openai_query_id: str,
+        openai_response_id: str,
         timeout: float | None = _default_conn_timeout,
 ) -> models.OpenAIQuery | None:
-    """NOTE: for now, assuming we only want to select by openai_query_id."""
+    """NOTE: for now, assuming we only want to select by openai_response_id."""
     record = await conn.fetchrow(
         """
         SELECT *
         FROM "openai_query"
-        WHERE openai_query = $1;
+        WHERE openai_response_id = $1;
         """,
-        openai_query_id,
+        openai_response_id,
         timeout=timeout,
     )
 
@@ -292,25 +292,6 @@ async def insert_openai_query(
         timeout=timeout,
     )
 
-
-# TODO: this can probably be removed?
-# async def update_openai_query(
-#         conn: Connection,
-#         query_id: int,
-#         response_length: int | None = None,
-#         timeout: float | None = _default_conn_timeout,
-# ):
-#     """Assuming we ever need to update only response_length!"""
-#     await conn.execute(
-#         """
-#         UPDATE "openai_query"
-#         SET response_length = $2
-#         WHERE id = $1;
-#         """,
-#         query_id,
-#         response_length,
-#         timeout=timeout,
-#     )
 
 async def insert_game_chat_message(
         conn: Connection,
@@ -366,5 +347,53 @@ async def insert_game_kill(
         victim_team,
         damage_type,
         kill_distance_m,
+        timeout=timeout,
+    )
+
+
+async def delete_game_player(
+        conn: Connection,
+        game_id: str,
+        player_id: int,
+        timeout: float | None = _default_conn_timeout,
+):
+    await conn.execute(
+        """
+        DELETE
+        FROM "game_player"
+        WHERE game_id = $1
+          AND id = $2;
+        """,
+        game_id,
+        player_id,
+        timeout=timeout,
+    )
+
+
+async def upsert_game_player(
+        conn: Connection,
+        game_id: str,
+        player_id: int,
+        name: str,
+        team_index: int,
+        score: float,
+        timeout: float | None = _default_conn_timeout,
+):
+    await conn.execute(
+        """
+        INSERT INTO "game_player" (game_id, id, name, team, score)
+        VALUES ($1, $2, $3, $4, $5)
+        ON CONFLICT DO UPDATE
+            SET game_id = excluded.game_id,
+                id      = excluded.id,
+                name    = excluded.name,
+                team    = excluded.team,
+                score   = excluded.score;
+        """,
+        game_id,
+        player_id,
+        name,
+        team_index,
+        score,
         timeout=timeout,
     )

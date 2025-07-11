@@ -31,9 +31,6 @@ import sanic
 from chatgpt_proxy.db import models
 
 
-# TODO: rethink module organization.
-
-
 class Context(SimpleNamespace):
     client: openai.AsyncOpenAI | None
     pg_pool: asyncpg.Pool | None

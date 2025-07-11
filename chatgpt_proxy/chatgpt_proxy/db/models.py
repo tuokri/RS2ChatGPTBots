@@ -25,6 +25,19 @@
 import datetime
 import ipaddress
 from dataclasses import dataclass
+from enum import StrEnum
+
+
+# Mirrored in ChatGPTBotsMutator.uc!
+class SayType(StrEnum):
+    ALL = "0"
+    TEAM = "1"
+
+
+class Team(StrEnum):
+    North = "0"
+    South = "1"
+    Neutral = "3"
 
 
 @dataclass(slots=True, frozen=True)
@@ -36,6 +49,15 @@ class Game:
     game_server_port: int
     stop_time: datetime.datetime | None = None
     openai_previous_response_id: str | None = None
+
+
+@dataclass(slots=True, frozen=True)
+class GamePlayer:
+    game_id: str
+    id: int
+    name: str
+    team: Team
+    score: int
 
 
 @dataclass(slots=True, frozen=True)

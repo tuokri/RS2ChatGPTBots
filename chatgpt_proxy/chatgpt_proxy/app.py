@@ -30,7 +30,6 @@ import datetime
 import multiprocessing as mp
 import os
 import secrets
-from enum import StrEnum
 from http import HTTPStatus
 from multiprocessing.synchronize import Event as EventType
 
@@ -42,12 +41,15 @@ from sanic.response import HTTPResponse
 
 from chatgpt_proxy.auth import auth
 from chatgpt_proxy.auth import check_and_inject_game
-from chatgpt_proxy.common import App
-from chatgpt_proxy.common import Context
-from chatgpt_proxy.common import Request
 from chatgpt_proxy.db import pool_acquire
 from chatgpt_proxy.db import queries
+from chatgpt_proxy.db.models import SayType
+from chatgpt_proxy.db.models import Team
 from chatgpt_proxy.log import logger
+from chatgpt_proxy.types import App
+from chatgpt_proxy.types import Context
+from chatgpt_proxy.types import Request
+from chatgpt_proxy.types import RequestContext
 from chatgpt_proxy.utils import get_remote_addr
 from chatgpt_proxy.utils import is_prod_env
 from chatgpt_proxy.utils import utcnow
@@ -121,18 +123,6 @@ prompt_max_chat_messages = 15
 prompt_max_kills = 15
 
 game_id_length = 24
-
-
-# Mirrored in ChatGPTBotsMutator.uc!
-class SayType(StrEnum):
-    ALL = "0"
-    TEAM = "1"
-
-
-class Team(StrEnum):
-    North = "0"
-    South = "1"
-    Neutral = "3"
 
 
 @api_v1.get("/game/<game_id:str>")
@@ -287,7 +277,7 @@ async def post_game_message(
     async with pool_acquire(pg_pool) as conn:
         previous_query = await queries.select_openai_query(
             conn=conn,
-            openai_query_id=previous_response_id,
+            openai_response_id=previous_response_id,
         )
         if not previous_query:
             logger.warning("cannot find OpenAI query for id: {}", previous_response_id)
@@ -382,18 +372,43 @@ async def put_game_player(
 
     try:
         parts = request.body.decode("utf-8").split("\n")
+        name = parts[0]
+        team = Team(parts[1])
+        score = int(parts[2])
     except Exception as e:
         logger.debug("failed to parse game player data: {}: {}", type(e).__name__, e)
         return sanic.HTTPResponse(HTTPStatus.BAD_REQUEST)
 
     async with pool_acquire(pg_pool) as conn:
         async with conn.transaction():
-            pass
-            # TODO:
-            # await queries.upsert_game_player()
+            await queries.upsert_game_player(
+                conn=conn,
+                game_id=game_id,
+                player_id=player_id,
+                name=name,
+                team_index=int(team),
+                score=score,
+            )
 
     # TODO: if player exists, send NO_CONTENT, otherwise CREATED.
     return sanic.HTTPResponse(status=HTTPStatus.NO_CONTENT)
+
+
+@api_v1.delete("/game/<game_id:str>/player/<player_id:int>")
+@check_and_inject_game
+async def delete_game_player(
+        _: Request,
+        game_id: str,
+        player_id: int,
+        pg_pool: asyncpg.Pool,
+) -> HTTPResponse:
+    async with pool_acquire(pg_pool) as conn:
+        await queries.delete_game_player(
+            conn=conn,
+            game_id=game_id,
+            player_id=player_id,
+        )
+    return HTTPResponse(status=HTTPStatus.NO_CONTENT)
 
 
 @api_v1.post("/game/<game_id:str>/chat_message")

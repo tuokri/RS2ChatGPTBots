@@ -32,10 +32,10 @@ import asyncpg
 import jwt
 import sanic
 
-from chatgpt_proxy.common import Request
 from chatgpt_proxy.db import pool_acquire
 from chatgpt_proxy.db import queries
 from chatgpt_proxy.log import logger
+from chatgpt_proxy.types import Request
 from chatgpt_proxy.utils import get_remote_addr
 
 jwt_issuer = "ChatGPTProxy"
@@ -113,14 +113,19 @@ async def check_token(request: Request, pg_pool: asyncpg.Pool) -> bool:
 def check_and_inject_game(func: Callable) -> Callable:
     def decorator(f: Callable) -> Callable:
         @wraps(f)
-        async def game_owner_checked_handler(request: Request, game_id: str, *args, **kwargs) -> sanic.HTTPResponse:
+        async def game_owner_checked_handler(
+                request: Request,
+                game_id: str,
+                *args,
+                **kwargs,
+        ) -> sanic.HTTPResponse:
             if ((request.ctx.jwt_game_server_address is None)
                     or (request.ctx.jwt_game_server_port is None)
             ):
                 logger.debug(
                     "cannot verify game owner: jwt_game_server_address={}, jwt_game_server_port={}",
                     request.ctx.jwt_game_server_address,
-                    request.ctx.jwt_game_server_port
+                    request.ctx.jwt_game_server_port,
                 )
                 return sanic.HTTPResponse("Unauthorized.", status=HTTPStatus.UNAUTHORIZED)
 

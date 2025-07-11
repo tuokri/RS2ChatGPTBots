@@ -20,13 +20,21 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
+import os
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator
 
+import aiocache
+import redis.asyncio as redis
 from asyncpg import Connection
 from asyncpg import Pool
 
+from chatgpt_proxy.log import logger
+from chatgpt_proxy.utils import is_prod_env
+
 _default_acquire_timeout = 5.0
+
+redis_namespace_db = "db"
 
 
 @asynccontextmanager
@@ -37,3 +45,34 @@ async def pool_acquire(
     conn: Connection
     async with pool.acquire(timeout=timeout) as conn:
         yield conn
+
+
+_default_cache = "redis" if is_prod_env else "memory"
+_cache_method = os.getenv("CHATGPT_PROXY_CACHE_METHOD", _default_cache).lower().strip()
+
+
+def setup_memory_cache() -> aiocache.SimpleMemoryCache:
+    return aiocache.SimpleMemoryCache()
+
+
+def setup_redis_cache() -> aiocache.RedisCache:
+    redis_url = os.environ["REDIS_URL"]
+    redis_client = redis.Redis.from_url(redis_url)
+    return aiocache.RedisCache(
+        redis_client,
+        namespace=redis_namespace_db,
+    )
+
+
+cache: aiocache.BaseCache
+
+if _cache_method == "redis":
+    cache = setup_redis_cache()
+    pass  # TODO
+elif _cache_method == "memory":
+    cache = setup_memory_cache()
+    pass  # TODO
+else:
+    logger.error("invalid cache method: '{}', defaulting to memory")
+    _cache_method = "memory"
+    cache = setup_memory_cache()

@@ -52,12 +52,12 @@ import chatgpt_proxy  # noqa: E402
 from chatgpt_proxy import auth  # noqa: E402
 from chatgpt_proxy.app import app  # noqa: E402
 from chatgpt_proxy.app import game_id_length  # noqa: E402
-from chatgpt_proxy.common import App  # noqa: E402
 from chatgpt_proxy.db import pool_acquire  # noqa: E402
 from chatgpt_proxy.db import queries  # noqa: E402
 from chatgpt_proxy.log import logger  # noqa: E402
 from chatgpt_proxy.tests.client import SpoofedSanicASGITestClient  # noqa: E402
 from chatgpt_proxy.tests.monkey_patch import monkey_patch_sanic_testing  # noqa: E402
+from chatgpt_proxy.types import App  # noqa: E402
 from chatgpt_proxy.utils import utcnow  # noqa: E402
 
 logger.level("DEBUG")
@@ -130,6 +130,7 @@ _token_for_forbidden_server_sha256 = hashlib.sha256(
 # TODO: get access log to show up in pytest capture. This does not work.
 app.config.ACCESS_LOG = True
 app.config.OAS = False
+app.config.OAS_AUTODOC = False
 sanic_logger.setLevel(logging.DEBUG)
 sanic_access_logger.setLevel(logging.DEBUG)
 

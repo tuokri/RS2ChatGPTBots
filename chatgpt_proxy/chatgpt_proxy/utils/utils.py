@@ -19,11 +19,12 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
+
 import datetime
 import ipaddress
 import os
 
-from chatgpt_proxy.common import Request
+from chatgpt_proxy.types import Request
 
 is_prod_env: bool = "FLY_APP_NAME" in os.environ
 
