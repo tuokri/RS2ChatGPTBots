@@ -1,5 +1,7 @@
 name: Python package builds and tests
 
+# TODO: set up a separate workflow for Windows!
+
 on:
   push:
     branches: [ "master" ]
@@ -9,14 +11,12 @@ on:
 jobs:
   build:
 
-    # TODO: how would Windows testing work with the container setup?
-    #       Maybe just ignore it, and only test on Linux.
-    runs-on: ${{ matrix.os }}
-    container: ubuntu:latest  # TODO: or, can we parametrize this to also run on a Windows container?
+    runs-on: ubuntu-latest
+    container: ${{ matrix.container }}
     strategy:
       fail-fast: false
       matrix:
-        os: [ ubuntu-latest ]
+        container: [ "ubuntu:latest", ]
         python-version: [ "3.13" ]
 
     env:
@@ -103,8 +103,14 @@ jobs:
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: pytest-coverage-html-${{ matrix.os }}-python-${{ matrix.python-version }}
+          name: pytest-coverage-html-${{ matrix.container }}-python-${{ matrix.python-version }}
           path: chatgpt_proxy/cov_html
+
+      - name: Store mypy cache
+        uses: actions/cache@v4
+        with:
+          path: ./chatgpt_proxy/.mypy_cache
+          key: mypy-cache-${{ matrix.container }}-python-${{ matrix.python-version }}
 
       - name: Minimize uv cache
         working-directory: ./chatgpt_proxy
