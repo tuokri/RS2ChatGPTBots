@@ -82,6 +82,12 @@ jobs:
         run: |
           uv build
 
+      - name: Store/restore mypy cache
+        uses: actions/cache@v4
+        with:
+          path: ./chatgpt_proxy/.mypy_cache
+          key: mypy-cache-${{ env.MATRIX_CONTAINER }}-python-${{ matrix.python-version }}
+
       - name: Run mypy
         working-directory: ./chatgpt_proxy
         continue-on-error: true
@@ -109,14 +115,8 @@ jobs:
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: pytest-coverage-html-${MATRIX_CONTAINER}-python-${{ matrix.python-version }}
+          name: pytest-coverage-html-${{ env.MATRIX_CONTAINER }}-python-${{ matrix.python-version }}
           path: chatgpt_proxy/cov_html
-
-      - name: Store mypy cache
-        uses: actions/cache@v4
-        with:
-          path: ./chatgpt_proxy/.mypy_cache
-          key: mypy-cache-${MATRIX_CONTAINER}-python-${{ matrix.python-version }}
 
       - name: Minimize uv cache
         working-directory: ./chatgpt_proxy
