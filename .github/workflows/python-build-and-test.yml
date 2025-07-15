@@ -82,6 +82,12 @@ jobs:
         run: |
           uv build
 
+      - name: Sanitize container name
+        shell: bash
+        run: |
+          export MATRIX_CONTAINER=${{ matrix.container }}
+          echo "MATRIX_CONTAINER=${MATRIX_CONTAINER/:/_}" >> $GITHUB_ENV
+
       - name: Store/restore mypy cache
         uses: actions/cache@v4
         with:
@@ -104,12 +110,6 @@ jobs:
         working-directory: ./chatgpt_proxy
         run: |
           uv run pytest -s --cov=chatgpt_proxy --cov-report html:cov_html
-
-      - name: Sanitize container name
-        shell: bash
-        run: |
-          export MATRIX_CONTAINER=${{ matrix.container }}
-          echo "MATRIX_CONTAINER=${MATRIX_CONTAINER/:/_}" >> $GITHUB_ENV
 
       - name: Store test reports
         uses: actions/upload-artifact@v4
