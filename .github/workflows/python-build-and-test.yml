@@ -100,6 +100,7 @@ jobs:
           uv run pytest -s --cov=chatgpt_proxy --cov-report html:cov_html
 
       - name: Sanitize container name
+        shell: bash
         run: |
           export MATRIX_CONTAINER=${{ matrix.container }}
           echo "MATRIX_CONTAINER=${MATRIX_CONTAINER/:/_}" >> $GITHUB_ENV
