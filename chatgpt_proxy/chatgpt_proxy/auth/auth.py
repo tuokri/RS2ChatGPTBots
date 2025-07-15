@@ -129,7 +129,7 @@ def check_and_inject_game(func: Callable) -> Callable:
                 )
                 return sanic.HTTPResponse("Unauthorized.", status=HTTPStatus.UNAUTHORIZED)
 
-            async with (pool_acquire(request.app.ctx.pg_pool) as conn):
+            async with pool_acquire(request.app.ctx.pg_pool) as conn:
                 game = await queries.select_game(conn=conn, game_id=game_id)
                 if not game:
                     logger.debug("no game found for game_id: {}", game_id)
