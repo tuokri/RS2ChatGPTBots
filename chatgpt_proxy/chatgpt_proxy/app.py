@@ -49,7 +49,6 @@ from chatgpt_proxy.log import logger
 from chatgpt_proxy.types import App
 from chatgpt_proxy.types import Context
 from chatgpt_proxy.types import Request
-from chatgpt_proxy.types import RequestContext
 from chatgpt_proxy.utils import get_remote_addr
 from chatgpt_proxy.utils import is_prod_env
 from chatgpt_proxy.utils import utcnow
