@@ -67,7 +67,14 @@ def setup_redis_cache() -> aiocache.RedisCache:
 cache: aiocache.BaseCache
 
 if _cache_method == "redis":
-    cache = setup_redis_cache()
+    if "REDIS_URL" not in os.environ and not is_prod_env:
+        logger.warning(
+            f"requested DB cache method is 'redis', but no REDIS_URL is set, "
+            f"falling back to in-memory cache (is_prod_env={is_prod_env})"
+        )
+        cache = setup_memory_cache()
+    else:
+        cache = setup_redis_cache()
     pass  # TODO
 elif _cache_method == "memory":
     cache = setup_memory_cache()
