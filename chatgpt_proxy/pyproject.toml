@@ -73,3 +73,9 @@ module = [
     "pytest_loguru.*",
 ]
 ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = [
+    "aiocache.*",
+]
+ignore_missing_imports = true
