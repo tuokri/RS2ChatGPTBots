@@ -22,7 +22,7 @@
 
 class ChatGPTBotsMutator extends ROMutator
     config(Mutator_ChatGPTBots)
-    dependson(HttpSock);
+    dependson(CGBHttpSock);
 
 // TODO: primary features:
 //   * Some sort of logic on when to actually send messages to the proxy server.
@@ -76,7 +76,7 @@ struct KeyValuePair_IntInt
 };
 
 var CGBProxy CGBProxy;
-var HttpSock Sock;
+var CGBHttpSock Sock;
 var CGBMutatorConfig Config;
 var array<Request> RequestQueue;
 var array<GameChatMessage> GameChatMessageQueue;
@@ -104,10 +104,10 @@ var array<KeyValuePair_IntInt> PlayerIdToTeam;
 
 function CreateHTTPClient()
 {
-    Sock = Spawn(class'HttpSock', self);
+    Sock = Spawn(class'CGBHttpSock', self);
     if (Sock == None)
     {
-        `cgberror("failed to spawn HttpSock!");
+        `cgberror("failed to spawn CGBHttpSock!");
         return;
     }
 }
@@ -1051,12 +1051,12 @@ function SetCancelOpenLinkTimer(optional float Timeout = 2.0)
     SetTimer(Timeout, False, NameOf(CancelOpenLink));
 }
 
-// Stupid hack to avoid HttpSock from spamming logs if connection fails!
+// Stupid hack to avoid CGBHttpSock from spamming logs if connection fails!
 function CancelOpenLink()
 {
     if (Sock != None)
     {
-        `cgblog("cancelling HttpSock connection attempt");
+        `cgblog("cancelling CGBHttpSock connection attempt");
         Sock.Abort();
         Sock.OnComplete = None;
         Sock.OnReturnCode = None;
