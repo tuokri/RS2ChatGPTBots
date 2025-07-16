@@ -66,6 +66,8 @@ def setup_redis_cache() -> aiocache.RedisCache:
     )
 
 
+# TODO: move all the cache stuff to a separate package/module?
+
 cache: aiocache.BaseCache
 
 if _cache_method == "redis":
