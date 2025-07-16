@@ -124,6 +124,13 @@ jobs:
           name: pytest-coverage-html-${{ env.MATRIX_CONTAINER }}-python-${{ matrix.python-version }}
           path: chatgpt_proxy/cov_html
 
+      - name: Store built Python packages
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: chatgpt_proxy-dist-${{ env.MATRIX_CONTAINER }}-python-${{ matrix.python-version }}
+          path: chatgpt_proxy/dist
+
       - name: Minimize uv cache
         working-directory: ./chatgpt_proxy
         run: uv cache prune --ci
