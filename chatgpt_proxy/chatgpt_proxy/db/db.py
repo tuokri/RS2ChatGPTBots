@@ -20,6 +20,8 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
+"""Database connection and caching utilities."""
+
 import os
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator

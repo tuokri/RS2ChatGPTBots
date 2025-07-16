@@ -20,6 +20,8 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
+"""Provides authentication and authorization for the chatgpt_proxy API server."""
+
 import hashlib
 import ipaddress
 from functools import wraps
@@ -60,10 +62,6 @@ async def check_token(request: Request, pg_pool: asyncpg.Pool) -> bool:
         logger.debug("JWT validation failed: {}: {}", type(e).__name__, e)
         return False
 
-    # TODO: since we store API keys in DB, we should also check here
-    #       that the API key provided is actually stored, and that the
-    #       subject of the key is the correct server.
-
     # JWT subject should be IP:port.
     sub: str = token["sub"]
     a, p = sub.split(":")
@@ -103,7 +101,6 @@ async def check_token(request: Request, pg_pool: asyncpg.Pool) -> bool:
     #   (and cache it) to verify that the server truly exists and is an RS2 server.
     #   But is this too much extra effort for a very minimal security gain?
 
-    # TODO: double-check later that it's safe to assign these at this point!
     request.ctx.jwt_game_server_port = port
     request.ctx.jwt_game_server_address = addr
 
