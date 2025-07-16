@@ -20,7 +20,7 @@ jobs:
         python-version: [ "3.13" ]
 
     env:
-      # Hostname equals service name below.
+      # Hostname equals the service name below.
       DATABASE_URL: postgresql://postgres:postgres@postgres:5432/
 
     services:
@@ -93,6 +93,12 @@ jobs:
         with:
           path: ./chatgpt_proxy/.mypy_cache
           key: mypy-cache-${{ env.MATRIX_CONTAINER }}-python-${{ matrix.python-version }}
+
+      - name: Store/restore ruff cache
+        uses: actions/cache@v4
+        with:
+          path: ./chatgpt_proxy/.ruff_cache
+          key: ruff-cache-${{ env.MATRIX_CONTAINER }}-python-${{ matrix.python-version }}
 
       - name: Run mypy
         working-directory: ./chatgpt_proxy
