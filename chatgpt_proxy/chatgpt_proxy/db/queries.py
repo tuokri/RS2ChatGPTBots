@@ -186,6 +186,19 @@ async def select_game_server_api_key(
     )
 
 
+async def select_game_server_api_keys(
+        conn: Connection,
+        timeout: float | None = _default_conn_timeout,
+) -> list[Record]:
+    return await conn.fetch(
+        """
+        SELECT *
+        FROM "game_server_api_key";
+        """,
+        timeout=timeout,
+    )
+
+
 async def insert_game_server_api_key(
         conn: Connection,
         issued_at: datetime.datetime,

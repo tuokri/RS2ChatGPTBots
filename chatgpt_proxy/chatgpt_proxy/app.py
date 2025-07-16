@@ -42,6 +42,7 @@ from sanic.response import HTTPResponse
 
 from chatgpt_proxy.auth import auth
 from chatgpt_proxy.auth import check_and_inject_game
+from chatgpt_proxy.auth import is_real_game_server
 from chatgpt_proxy.db import cache
 from chatgpt_proxy.db import pool_acquire
 from chatgpt_proxy.db import queries
@@ -119,6 +120,7 @@ Since the beginning of the game, the following additional events have happened:
 game_expiration = datetime.timedelta(hours=5)
 api_key_deletion_leeway = datetime.timedelta(minutes=5)
 db_maintenance_interval = 30.0
+steam_web_api_cache_refresh_interval = datetime.timedelta(minutes=30).total_seconds()
 
 prompt_max_chat_messages = 15
 prompt_max_kills = 15
@@ -554,6 +556,34 @@ async def db_maintenance(stop_event: EventType) -> None:
             await pool.close()
 
 
+async def refresh_steam_web_api_cache(stop_event: EventType) -> None:
+    pool: asyncpg.Pool | None = None
+
+    try:
+        db_url = os.environ.get("DATABASE_URL")
+        pool = await asyncpg.create_pool(dsn=db_url, min_size=1, max_size=1)
+
+        while not stop_event.wait(steam_web_api_cache_refresh_interval):
+            async with pool_acquire(pool) as conn:
+                api_keys = await queries.select_game_server_api_keys(conn)
+                logger.info("refreshing Steam Web API cache for {} keys", len(api_keys))
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                tasks = [
+                    is_real_game_server(
+                        client=client,
+                        game_server_address=api_key["game_server_address"],
+                        game_server_port=api_key["game_server_port"],
+                    )
+                    for api_key in api_keys
+                ]
+                await asyncio.gather(*tasks)
+
+    except KeyboardInterrupt:
+        await cache.close()
+        if pool:
+            await pool.close()
+
+
 @api_v1.on_request
 async def api_v1_on_request(request: Request) -> HTTPResponse | None:
     authenticated = await auth.check_token(request, request.app.ctx.pg_pool)
@@ -570,25 +600,35 @@ def db_maintenance_process(stop_event: EventType) -> None:
     asyncio.run(db_maintenance(stop_event))
 
 
+def refresh_steam_web_api_cache_process(stop_event: EventType) -> None:
+    asyncio.run(refresh_steam_web_api_cache(stop_event))
+
+
 @app.main_process_ready
 async def main_process_ready(app_: App, _):
     app_.manager.manage(
         name="DatabaseMaintenanceProcess",
         func=db_maintenance_process,
-        kwargs={"stop_event": app_.shared_ctx.db_maint_event},
+        kwargs={"stop_event": app_.shared_ctx.bg_process_event},
+        transient=True,
+    )
+    app_.manager.manage(
+        "SteamWebAPICacheRefreshProcess",
+        func=refresh_steam_web_api_cache_process,
+        kwargs={"stop_event": app_.shared_ctx.bg_process_event},
         transient=True,
     )
 
 
 @app.main_process_start
 async def main_process_start(app_: App, _):
-    db_maint_event = mp.Event()
-    app_.shared_ctx.db_maint_event = db_maint_event
+    bg_process_event = mp.Event()
+    app_.shared_ctx.bg_process_event = bg_process_event
 
 
 @app.main_process_stop
 async def main_process_stop(app_: App, _):
-    app_.shared_ctx.db_maint_event.set()
+    app_.shared_ctx.bg_process_event.set()
 
 
 if __name__ == "__main__":
