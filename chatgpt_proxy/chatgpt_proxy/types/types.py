@@ -27,6 +27,7 @@ from types import SimpleNamespace
 from typing import TypeAlias
 
 import asyncpg
+import httpx
 import openai
 import sanic
 
@@ -36,6 +37,7 @@ from chatgpt_proxy.db import models
 class Context(SimpleNamespace):
     client: openai.AsyncOpenAI | None
     pg_pool: asyncpg.Pool | None
+    http_client: httpx.AsyncClient | None
 
 
 class RequestContext(SimpleNamespace):

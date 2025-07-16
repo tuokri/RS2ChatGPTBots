@@ -87,3 +87,7 @@ else:
     logger.error("invalid cache method: '{}', defaulting to memory")
     _cache_method = "memory"
     cache = setup_memory_cache()
+
+# NOTE: this does not work here, so instead we'll close the cache when
+# the Sanic application exits.
+# asyncio_atexit.register(cache.close)

@@ -24,6 +24,7 @@
 
 import hashlib
 import ipaddress
+import os
 from functools import wraps
 from hmac import compare_digest
 from http import HTTPStatus
@@ -31,6 +32,7 @@ from inspect import isawaitable
 from typing import Callable
 
 import asyncpg
+import httpx
 import jwt
 import sanic
 
@@ -42,6 +44,42 @@ from chatgpt_proxy.utils import get_remote_addr
 
 jwt_issuer = "ChatGPTProxy"
 jwt_audience = "ChatGPTProxy"
+
+_steam_web_api_key = os.environ.get("STEAM_WEB_API_KEY", None)
+
+_server_list_url = "https://api.steampowered.com/IGameServersService/GetServerList/v1/"
+
+
+# TODO: our Sanic app could have a background process that refreshes
+#       this cache automatically periodically for known servers!
+# TODO: this needs to be cached!
+async def is_real_game_server(
+        client: httpx.AsyncClient,
+        game_server_address: ipaddress.IPv4Address,
+        game_server_port: int,
+) -> bool:
+    try:
+        resp = await client.get(
+            _server_list_url,
+            params={
+                "key": _steam_web_api_key,
+                "filter": f"\\gamedir\\rs2\\gameaddr\\{game_server_address}:{game_server_port}",
+                # TODO: limit param would speed up things, or would it?
+            },
+        )
+        resp.raise_for_status()
+        servers = resp.json()["response"]["servers"]
+
+        if not servers:
+            logger.debug("Steam Web API returned no servers for {}:{}",
+                         game_server_address, game_server_port)
+            return False
+
+        return True
+    except Exception as e:
+        logger.debug("unable to verify {}:{} is a real RS2 server: {}: {}",
+                     game_server_address, game_server_port, type(e).__name__, e)
+        return False
 
 
 async def check_token(request: Request, pg_pool: asyncpg.Pool) -> bool:
@@ -97,9 +135,19 @@ async def check_token(request: Request, pg_pool: asyncpg.Pool) -> bool:
             logger.debug("JWT validation failed: stored hash does not match token hash")
             return False
 
-    # TODO: consider, we could also do an A2S query or Steam Web API query,
-    #   (and cache it) to verify that the server truly exists and is an RS2 server.
-    #   But is this too much extra effort for a very minimal security gain?
+    if _steam_web_api_key is None:
+        logger.warning("Steam Web API key is not set, "
+                       "unable to verify server is a real RS2 server")
+    else:
+        ok = await is_real_game_server(
+            request.app.ctx.http_client,  # type: ignore[arg-type]
+            addr,
+            port,
+        )
+        if not ok:
+            logger.debug("JWT validation failed: server is not a real RS2 server "
+                         "according to Steam Web API")
+            return False
 
     request.ctx.jwt_game_server_port = port
     request.ctx.jwt_game_server_address = addr

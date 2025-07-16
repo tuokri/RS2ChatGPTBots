@@ -34,6 +34,7 @@ from http import HTTPStatus
 from multiprocessing.synchronize import Event as EventType
 
 import asyncpg
+import httpx
 import openai
 import sanic
 from sanic import Blueprint
@@ -41,6 +42,7 @@ from sanic.response import HTTPResponse
 
 from chatgpt_proxy.auth import auth
 from chatgpt_proxy.auth import check_and_inject_game
+from chatgpt_proxy.db import cache
 from chatgpt_proxy.db import pool_acquire
 from chatgpt_proxy.db import queries
 from chatgpt_proxy.db.models import SayType
@@ -509,6 +511,9 @@ async def before_server_start(app_: App, _):
     app_.ctx.pg_pool = pool
     app_.ext.dependency(pool)
 
+    app_.ctx.http_client = httpx.AsyncClient()
+    app_.ext.dependency(app_.ctx.http_client)
+
 
 @app.before_server_stop
 async def before_server_stop(app_: App, _):
@@ -516,6 +521,10 @@ async def before_server_stop(app_: App, _):
         await app_.ctx.client.close()
     if app_.ctx.pg_pool:
         await app_.ctx.pg_pool.close()
+    if app_.ctx.http_client:
+        await app_.ctx.http_client.aclose()
+
+    await cache.close()
 
 
 async def db_maintenance(stop_event: EventType) -> None:
