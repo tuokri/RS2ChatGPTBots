@@ -9,6 +9,7 @@ dependencies = [
     "aiocache[redis]>=0.12.3",
     "asyncpg>=0.30.0",
     "click>=8.2.1",
+    "httpx>=0.28.1",
     "loguru>=0.7.3",
     "openai>=1.88.0",
     "py-markdown-table>=1.3.0",
