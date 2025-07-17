@@ -41,7 +41,10 @@ from sanic.log import access_logger as sanic_access_logger
 from sanic.log import logger as sanic_logger
 from sanic_testing.reusable import ReusableClient
 
+# TODO: fix env var handling, it becomes a mess with multiple modules!
+
 _sanic_secret = "dummy"
+_test_db = "chatgpt_proxy_tests"
 _db_url = "postgresql://postgres:postgres@localhost:5432"
 _db_url = os.environ.get("DATABASE_URL", _db_url)
 _db_test_url = f"{_db_url.rstrip("/")}/chatgpt_proxy_tests"
@@ -58,6 +61,9 @@ from chatgpt_proxy.app import game_id_length  # noqa: E402
 from chatgpt_proxy.cache import app_cache  # noqa: E402
 from chatgpt_proxy.db import pool_acquire  # noqa: E402
 from chatgpt_proxy.db import queries  # noqa: E402
+from chatgpt_proxy.db.models import GameChatMessage # noqa: E402
+from chatgpt_proxy.db.models import SayType # noqa: E402
+from chatgpt_proxy.db.models import Team # noqa: E402
 from chatgpt_proxy.log import logger  # noqa: E402
 from chatgpt_proxy.tests.client import SpoofedSanicASGITestClient  # noqa: E402
 from chatgpt_proxy.tests.monkey_patch import monkey_patch_sanic_testing  # noqa: E402
@@ -182,11 +188,11 @@ async def api_fixture(
 
     async with pool_acquire(db_fixture_pool, timeout=_db_timeout) as conn:
         await conn.execute(
-            "DROP DATABASE IF EXISTS chatgpt_proxy_tests WITH (FORCE)",
+            f"DROP DATABASE IF EXISTS {_test_db} WITH (FORCE)",
             timeout=_db_timeout,
         )
         await conn.execute(
-            "CREATE DATABASE chatgpt_proxy_tests",
+            f"CREATE DATABASE {_test_db}",
             timeout=_db_timeout,
         )
 
@@ -312,7 +318,7 @@ async def api_fixture(
 
     async with pool_acquire(db_fixture_pool, timeout=_db_timeout) as conn:
         await conn.execute(
-            "DROP DATABASE IF EXISTS chatgpt_proxy_tests WITH (FORCE)",
+            f"DROP DATABASE IF EXISTS {_test_db} WITH (FORCE)",
             timeout=_db_timeout,
         )
 
@@ -465,7 +471,15 @@ async def test_api_v1_post_game_chat_message(api_fixture, caplog) -> None:
     api_app, reusable_client, openai_mock_router, steam_mock_router, db_conn = api_fixture
 
     path = "/api/v1/game/first_game/chat_message"
-    data = "my name is dog69\n0\n0\nthis is the actual message!"
+    data = GameChatMessage(
+        id=0,
+        sender_name="my name is dog69",
+        sender_team=Team.North,
+        channel=SayType.ALL,
+        message="this is the actual message!",
+        game_id="first_game",
+        send_time=utcnow(),
+    ).wire_format()
     req, resp = await api_app.asgi_client.post(path, data=data)
     assert resp.status == 204
 
