@@ -400,6 +400,27 @@ async def test_api_v1_post_game_invalid_token(api_fixture, caplog) -> None:
         req, resp = await api_app.asgi_client.post("/api/v1/game", data=data)
         assert resp.status == 401
 
+    logger.info("testing Steam API returning garbage")
+    with steam_mock_router:
+        steam_mock_router.get(
+            "IGameServersService/GetServerList/v1/",
+            params={
+                "key": _steam_web_api_key,
+                "filter": _steam_web_api_get_server_list_dummy_filter,
+            }
+        ).mock(
+            return_value=httpx.Response(
+                status_code=200,
+                json={
+                    "blasdalsd": {
+                        "xorvors": [],
+                    },
+                },
+            ))
+        data = "VNTE-WhatTheFuckBro\n7777"
+        req, resp = await api_app.asgi_client.post("/api/v1/game", data=data)
+        assert resp.status == 401
+
     logger.info("testing token meant for another IP address (but the token exists in the DB)")
     data = "VNTE-ThisDoesntMatterLol\n7777"
     req, resp = await api_app.asgi_client.post(
