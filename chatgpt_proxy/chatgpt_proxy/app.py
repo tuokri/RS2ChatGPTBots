@@ -43,7 +43,8 @@ from sanic.response import HTTPResponse
 from chatgpt_proxy.auth import auth
 from chatgpt_proxy.auth import check_and_inject_game
 from chatgpt_proxy.auth import is_real_game_server
-from chatgpt_proxy.db import cache
+from chatgpt_proxy.cache import app_cache
+from chatgpt_proxy.cache import db_cache
 from chatgpt_proxy.db import pool_acquire
 from chatgpt_proxy.db import queries
 from chatgpt_proxy.db.models import SayType
@@ -526,7 +527,8 @@ async def before_server_stop(app_: App, _):
     if app_.ctx.http_client:
         await app_.ctx.http_client.aclose()
 
-    await cache.close()
+    await app_cache.close()
+    await db_cache.close()
 
 
 async def db_maintenance(stop_event: EventType) -> None:
@@ -579,7 +581,7 @@ async def refresh_steam_web_api_cache(stop_event: EventType) -> None:
                 await asyncio.gather(*tasks)
 
     except KeyboardInterrupt:
-        await cache.close()
+        await app_cache.close()
         if pool:
             await pool.close()
 

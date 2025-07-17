@@ -22,6 +22,7 @@
 
 import datetime
 import hashlib
+import importlib
 import ipaddress
 import logging
 import os
@@ -47,11 +48,14 @@ _db_test_url = f"{_db_url.rstrip("/")}/chatgpt_proxy_tests"
 os.environ["SANIC_SECRET"] = _sanic_secret
 os.environ["OPENAI_API_KEY"] = "dummy"
 os.environ["DATABASE_URL"] = _db_test_url
+_steam_web_api_key = "dummy_steam_web_api_key"
+os.environ["STEAM_WEB_API_KEY"] = _steam_web_api_key
 
 import chatgpt_proxy  # noqa: E402
 from chatgpt_proxy import auth  # noqa: E402
 from chatgpt_proxy.app import app  # noqa: E402
 from chatgpt_proxy.app import game_id_length  # noqa: E402
+from chatgpt_proxy.cache import app_cache  # noqa: E402
 from chatgpt_proxy.db import pool_acquire  # noqa: E402
 from chatgpt_proxy.db import queries  # noqa: E402
 from chatgpt_proxy.log import logger  # noqa: E402
@@ -127,13 +131,15 @@ _token_for_forbidden_server = jwt.encode(
 _token_for_forbidden_server_sha256 = hashlib.sha256(
     _token_for_forbidden_server.encode()).digest()
 
+_steam_web_api_get_server_list_dummy_filter = (
+    f"\\gamedir\\rs2\\gameaddr\\{_game_server_address}:{_game_server_port}")
+
 # TODO: get access log to show up in pytest capture. This does not work.
 app.config.ACCESS_LOG = True
 app.config.OAS = False
 app.config.OAS_AUTODOC = False
 sanic_logger.setLevel(logging.DEBUG)
 sanic_access_logger.setLevel(logging.DEBUG)
-
 
 # TODO: add this back later if the crash with ReusableClient is resolved.
 # def client_post(
@@ -154,16 +160,26 @@ sanic_access_logger.setLevel(logging.DEBUG)
 #         **kwargs,
 #     )
 
+# TODO: maybe just use namedtuple?
+ApiFixtureTuple = tuple[
+    App,
+    ReusableClient | None,
+    respx.MockRouter,
+    respx.MockRouter,
+    asyncpg.Connection,
+]
+
 
 @pytest_asyncio.fixture
 async def api_fixture(
-) -> AsyncGenerator[tuple[App, ReusableClient | None, respx.MockRouter, asyncpg.Connection]]:
+) -> AsyncGenerator[ApiFixtureTuple]:
     db_fixture_pool = await asyncpg.create_pool(
         dsn=_db_url,
         min_size=1,
         max_size=1,
         timeout=_db_timeout,
     )
+
     async with pool_acquire(db_fixture_pool, timeout=_db_timeout) as conn:
         await conn.execute(
             "DROP DATABASE IF EXISTS chatgpt_proxy_tests WITH (FORCE)",
@@ -238,19 +254,61 @@ async def api_fixture(
             )
 
         app.asgi_client.headers = _headers
-        with respx.mock(
+        with (respx.mock(
                 base_url="https://api.openai.com/",
                 assert_all_called=False,
-        ) as mock_router:
-            mock_router.post("/v1/responses").mock(
+        ) as openai_mock_router,
+            respx.mock(
+                base_url="https://api.steampowered.com",
+                assert_all_called=False,
+            ) as steam_web_api_mock_router
+        ):
+            openai_mock_router.post("/v1/responses").mock(
                 return_value=httpx.Response(
                     status_code=200,
                     json=response.model_dump(mode="json"),
                 ))
+
+            steam_web_api_mock_router.get(
+                "IGameServersService/GetServerList/v1/",
+                params={
+                    "key": _steam_web_api_key,
+                    "filter": _steam_web_api_get_server_list_dummy_filter,
+                }
+            ).mock(
+                return_value=httpx.Response(
+                    status_code=200,
+                    json={
+                        "response": {
+                            "servers": [
+                                {
+                                    "addr": "127.0.0.1:27015",
+                                    "gameport": 7777,
+                                    "steamid": "43215698745632158",
+                                    "name": "Dummy Server for pytest",
+                                    "appid": 418460,
+                                    "gamedir": "RS2",
+                                    "version": "1094",
+                                    "product": "RS2",
+                                    "region": 255,
+                                    "players": 3,
+                                    "max_players": 64,
+                                    "bots": 0,
+                                    "map": "VNSK-Riverbed",
+                                    "secure": True,
+                                    "dedicated": True,
+                                    "os": "w",
+                                    "gametype": "does_not_matter"
+                                },
+                            ],
+                        },
+                    },
+                ))
+
             # TODO: this crashes and nest-asyncio does not work! Try to fix later!
             # reusable_client = ReusableClient(app, asyncio.get_event_loop())
             reusable_client = None
-            yield app, reusable_client, mock_router, conn
+            yield app, reusable_client, openai_mock_router, steam_web_api_mock_router, conn
 
     async with pool_acquire(db_fixture_pool, timeout=_db_timeout) as conn:
         await conn.execute(
@@ -258,11 +316,13 @@ async def api_fixture(
             timeout=_db_timeout,
         )
 
+    await db_fixture_pool.close()
+
 
 @pytest.mark.asyncio
 async def test_api_v1_post_game(api_fixture, caplog) -> None:
     caplog.set_level(logging.DEBUG)
-    api_app, reusable_client, mock_router, db_conn = api_fixture
+    api_app, reusable_client, openai_mock_router, steam_mock_router, db_conn = api_fixture
 
     data = "VNTE-TestSuite\n7777"
     req, resp = await api_app.asgi_client.post("/api/v1/game", data=data)
@@ -280,40 +340,78 @@ async def test_api_v1_post_game(api_fixture, caplog) -> None:
 @pytest.mark.asyncio
 async def test_api_v1_post_game_invalid_token(api_fixture, caplog) -> None:
     caplog.set_level(logging.DEBUG)
-    api_app, reusable_client, mock_router, db_conn = api_fixture
+    api_app, reusable_client, openai_mock_router, steam_mock_router, db_conn = api_fixture
 
     # No token.
-    api_app.asgi_client.headers = {}
+    logger.info("testing no token")
     data = "VNTE-TestSuite\n7777"
-    req, resp = await api_app.asgi_client.post("/api/v1/game", data=data)
+    req, resp = await api_app.asgi_client.post(
+        "/api/v1/game",
+        data=data,
+        headers={
+            "Authorization": "",
+        },
+    )
     assert resp.status == 401
 
-    # Bad token.
-    api_app.asgi_client.headers = {
-        "Authorization": "Bearer aasddsadasasdadsadsdsaasdasdads"
-    }
+    # Bad token (garbage data).
+    logger.info("testing bad token")
     data = "VNTE-TestSuite\n7777"
-    req, resp = await api_app.asgi_client.post("/api/v1/game", data=data)
+    req, resp = await api_app.asgi_client.post(
+        "/api/v1/game",
+        data=data,
+        headers={
+            "Authorization": "Bearer aasddsadasasdadsadsdsaasdasdads",
+        },
+    )
     assert resp.status == 401
 
     # Good token with unwanted extra claims added
     # -> token hash check mismatch with database-stored hash.
-    api_app.asgi_client.headers = {
-        "Authorization": f"Bearer {_token_bad_extra_metadata}"
-    }
+    logger.info("testing token with extra metadata")
     data = "VNTE-TestSuite\n7777"
-    req, resp = await api_app.asgi_client.post("/api/v1/game", data=data)
+    req, resp = await api_app.asgi_client.post(
+        "/api/v1/game",
+        data=data,
+        headers={
+            "Authorization": f"Bearer {_token_bad_extra_metadata}",
+        },
+    )
     assert resp.status == 401
 
-    # Token meant for another IP address (but exists in the DB).
-    api_app.asgi_client.headers = {
-        "Authorization": f"Bearer {_token_for_forbidden_server}",
-    }
+    logger.info("testing Steam not recognizing the dedicated server")
+    with steam_mock_router:
+        steam_mock_router.get(
+            "IGameServersService/GetServerList/v1/",
+            params={
+                "key": _steam_web_api_key,
+                "filter": _steam_web_api_get_server_list_dummy_filter,
+            }
+        ).mock(
+            return_value=httpx.Response(
+                status_code=200,
+                json={
+                    "response": {
+                        "servers": [],
+                    },
+                },
+            ))
+        data = "VNTE-WhatTheFuckBro\n7777"
+        req, resp = await api_app.asgi_client.post("/api/v1/game", data=data)
+        assert resp.status == 401
+
+    logger.info("testing token meant for another IP address (but the token exists in the DB)")
     data = "VNTE-ThisDoesntMatterLol\n7777"
-    req, resp = await api_app.asgi_client.post("/api/v1/game", data=data)
+    req, resp = await api_app.asgi_client.post(
+        "/api/v1/game",
+        data=data,
+        headers={
+            "Authorization": f"Bearer {_token_for_forbidden_server}",
+        },
+    )
     assert resp.status == 401
 
-    # Token meant for another IP address.
+    logger.info("testing token meant for another IP address")
     spoofed_asgi_client = SpoofedSanicASGITestClient(
         app=api_app,
         client_ip="6.0.28.175",
@@ -343,7 +441,7 @@ async def test_api_v1_post_game_chat_message(api_fixture, caplog) -> None:
     # TODO: maybe just parametrize this test.
 
     caplog.set_level(logging.DEBUG)
-    api_app, reusable_client, mock_router, db_conn = api_fixture
+    api_app, reusable_client, openai_mock_router, steam_mock_router, db_conn = api_fixture
 
     path = "/api/v1/game/first_game/chat_message"
     data = "my name is dog69\n0\n0\nthis is the actual message!"
@@ -373,6 +471,27 @@ async def test_api_v1_post_game_chat_message(api_fixture, caplog) -> None:
     path = "/api/v1/game/first_game/chat_message"
     req, resp = await api_app.asgi_client.post(path)  # No data.
     assert resp.status == 400
+
+    # Steam Web API key is not set -> the result should still be the same,
+    # only with a warning logged, but don't bother asserting the log message.
+    # Run this check for coverage.
+    try:
+        # TODO: THIS DOES NOT WORK, PUT THIS IN TEST IN A NEW MODULE?
+        # TODO: THAT WOULD ALSO REQUIRE PUTTING THE COMMON TEST SETUP
+        #       UTILS IN A SEPARATE MODULE!
+        # Make sure there aren't any cached Steam Web API results.
+        await app_cache.clear()
+        del os.environ["STEAM_WEB_API_KEY"]
+        chatgpt_proxy.auth._steam_web_api_key = None
+        importlib.reload(chatgpt_proxy.auth)
+        from chatgpt_proxy.auth import is_real_game_server  # noqa: F401
+        path = "/api/v1/game/first_game/chat_message"
+        data = "my name is dog69\n0\n0\nthis is the actual message!"
+        req, resp = await api_app.asgi_client.post(path, data=data)
+        assert resp.status == 204
+    finally:
+        os.environ["STEAM_WEB_API_KEY"] = _steam_web_api_key
+        chatgpt_proxy.auth._steam_web_api_key = os.environ.get("STEAM_WEB_API_KEY", None)
 
 
 @pytest.mark.asyncio

@@ -31,11 +31,13 @@ from http import HTTPStatus
 from inspect import isawaitable
 from typing import Callable
 
+import aiocache
 import asyncpg
 import httpx
 import jwt
 import sanic
 
+from chatgpt_proxy.cache import app_cache
 from chatgpt_proxy.db import pool_acquire
 from chatgpt_proxy.db import queries
 from chatgpt_proxy.log import logger
@@ -50,9 +52,12 @@ _steam_web_api_key = os.environ.get("STEAM_WEB_API_KEY", None)
 _server_list_url = "https://api.steampowered.com/IGameServersService/GetServerList/v1/"
 
 
-# TODO: our Sanic app could have a background process that refreshes
-#       this cache automatically periodically for known servers!
-# TODO: this needs to be cached!
+@aiocache.cached(
+    app_cache,
+    # ttl=, # TODO
+    # NOTE: Only cache the result if the server was successfully verified.
+    skip_cache_func=lambda x: True if not x else False,
+)
 async def is_real_game_server(
         client: httpx.AsyncClient,
         game_server_address: ipaddress.IPv4Address,
@@ -201,7 +206,7 @@ def check_and_inject_game(func: Callable) -> Callable:
             response = f(request, game_id, *args, **kwargs)
             if isawaitable(response):
                 return await response
-            return response
+            return response  # pragma: no coverage
 
         return game_owner_checked_handler
 
