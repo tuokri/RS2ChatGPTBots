@@ -22,6 +22,7 @@ jobs:
     env:
       # Hostname equals the service name below.
       DATABASE_URL: postgresql://postgres:postgres@postgres:5432/
+      MATRIX_CONTAINER: unknown
 
     services:
       postgres:
