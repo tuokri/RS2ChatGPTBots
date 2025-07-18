@@ -20,12 +20,12 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-import importlib
+import sys
 from pathlib import Path
 
 import chatgpt_proxy
 
-version_file = Path(chatgpt_proxy._version.__file__)
+version_file = Path(chatgpt_proxy.__file__).parent / "_version.py"
 
 
 # TODO: is this test suite too flaky?
@@ -41,12 +41,13 @@ def test_version() -> None:
 def test_version_unknown() -> None:
     x = version_file.read_text()
     try:
-        # version_file.unlink()
-        importlib.reload(chatgpt_proxy)
-        # from chatgpt_proxy import __version__
-        # assert chatgpt_proxy.__version__ == "unknown"
+        version_file.unlink()
+        del sys.modules["chatgpt_proxy._version"]
+        chatgpt_proxy._load_version()
+        from chatgpt_proxy import __version__
+        assert __version__ == "unknown"
     except Exception:
         raise
     finally:
-        pass
-        # version_file.write_text(x)
+        version_file.write_text(x)
+        chatgpt_proxy._load_version()

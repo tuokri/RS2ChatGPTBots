@@ -22,11 +22,9 @@
 
 import datetime
 import hashlib
-import importlib
 import ipaddress
 import logging
 import os
-from pathlib import Path
 from typing import AsyncGenerator
 
 import asyncpg
@@ -41,19 +39,11 @@ from sanic.log import access_logger as sanic_access_logger
 from sanic.log import logger as sanic_logger
 from sanic_testing.reusable import ReusableClient
 
-# TODO: fix env var handling, it becomes a mess with multiple modules!
+from chatgpt_proxy.tests import setup  # noqa: E402
 
-_sanic_secret = "dummy"
-_test_db = "chatgpt_proxy_tests"
-_db_url = "postgresql://postgres:postgres@localhost:5432"
-_db_url = os.environ.get("DATABASE_URL", _db_url)
-_db_test_url = f"{_db_url.rstrip("/")}/chatgpt_proxy_tests"
-os.environ["SANIC_SECRET"] = _sanic_secret
-os.environ["OPENAI_API_KEY"] = "dummy"
-os.environ["DATABASE_URL"] = _db_test_url
-_steam_web_api_key = "dummy_steam_web_api_key"
-os.environ["STEAM_WEB_API_KEY"] = _steam_web_api_key
+setup.common_test_setup()
 
+# noinspection PyUnresolvedReferences
 import chatgpt_proxy  # noqa: E402
 from chatgpt_proxy import auth  # noqa: E402
 from chatgpt_proxy.app import app  # noqa: E402
@@ -61,9 +51,9 @@ from chatgpt_proxy.app import game_id_length  # noqa: E402
 from chatgpt_proxy.cache import app_cache  # noqa: E402
 from chatgpt_proxy.db import pool_acquire  # noqa: E402
 from chatgpt_proxy.db import queries  # noqa: E402
-from chatgpt_proxy.db.models import GameChatMessage # noqa: E402
-from chatgpt_proxy.db.models import SayType # noqa: E402
-from chatgpt_proxy.db.models import Team # noqa: E402
+from chatgpt_proxy.db.models import GameChatMessage  # noqa: E402
+from chatgpt_proxy.db.models import SayType  # noqa: E402
+from chatgpt_proxy.db.models import Team  # noqa: E402
 from chatgpt_proxy.log import logger  # noqa: E402
 from chatgpt_proxy.tests.client import SpoofedSanicASGITestClient  # noqa: E402
 from chatgpt_proxy.tests.monkey_patch import monkey_patch_sanic_testing  # noqa: E402
@@ -78,21 +68,13 @@ monkey_patch_sanic_testing(
 
 _db_timeout = 30.0
 
-_root_path = Path(chatgpt_proxy.__file__).resolve().parent
-_pkg_path_db = _root_path / "db/"
-_pkg_path_tests = _root_path / "tests/"
-
-assert _root_path.exists()
-assert _pkg_path_db.exists()
-assert _pkg_path_tests.exists()
-
 _game_server_address = ipaddress.IPv4Address("127.0.0.1")
 _game_server_port = 7777
 _now = utcnow()
 _iat = _now
 _exp = _now + datetime.timedelta(hours=12)
 _token = jwt.encode(
-    key=_sanic_secret,
+    key=setup.test_sanic_secret,
     algorithm="HS256",
     payload={
         "iss": auth.jwt_issuer,
@@ -108,7 +90,7 @@ _headers: dict[str, str] = {
 }
 
 _token_bad_extra_metadata = jwt.encode(
-    key=_sanic_secret,
+    key=setup.test_sanic_secret,
     algorithm="HS256",
     payload={
         "iss": auth.jwt_issuer,
@@ -124,7 +106,7 @@ _token_bad_extra_metadata_sha256 = hashlib.sha256(_token.encode()).digest()
 _forbidden_game_server_address = ipaddress.IPv4Address("88.99.12.1")
 _forbidden_game_server_port = 6969
 _token_for_forbidden_server = jwt.encode(
-    key=_sanic_secret,
+    key=setup.test_sanic_secret,
     algorithm="HS256",
     payload={
         "iss": auth.jwt_issuer,
@@ -180,19 +162,16 @@ ApiFixtureTuple = tuple[
 async def api_fixture(
 ) -> AsyncGenerator[ApiFixtureTuple]:
     db_fixture_pool = await asyncpg.create_pool(
-        dsn=_db_url,
+        dsn=setup.db_base_url,
         min_size=1,
         max_size=1,
         timeout=_db_timeout,
     )
 
     async with pool_acquire(db_fixture_pool, timeout=_db_timeout) as conn:
+        await setup.drop_test_db(conn, timeout=_db_timeout)
         await conn.execute(
-            f"DROP DATABASE IF EXISTS {_test_db} WITH (FORCE)",
-            timeout=_db_timeout,
-        )
-        await conn.execute(
-            f"CREATE DATABASE {_test_db}",
+            f"CREATE DATABASE {setup.test_db}",
             timeout=_db_timeout,
         )
 
@@ -224,22 +203,20 @@ async def api_fixture(
     )
 
     test_db_pool = await asyncpg.create_pool(
-        dsn=_db_test_url,
+        dsn=setup.db_test_url,
         min_size=1,
         max_size=1,
         timeout=_db_timeout,
     )
-
-    init_db_sql = (_pkg_path_db / "db.sql").read_text()
-    seed_db_sql = (_pkg_path_tests / "seed.sql").read_text()
 
     async with pool_acquire(
             test_db_pool,
             timeout=_db_timeout,
     ) as conn:
         async with conn.transaction():
-            await conn.execute(init_db_sql, timeout=_db_timeout)
-            await conn.execute(seed_db_sql, timeout=_db_timeout)
+            await setup.initialize_test_db(conn, timeout=_db_timeout)
+            await setup.seed_test_db(conn, timeout=_db_timeout)
+
             await queries.insert_game_server_api_key(
                 conn=conn,
                 issued_at=_iat,
@@ -278,7 +255,7 @@ async def api_fixture(
             steam_web_api_mock_router.get(
                 "IGameServersService/GetServerList/v1/",
                 params={
-                    "key": _steam_web_api_key,
+                    "key": setup.steam_web_api_key,
                     "filter": _steam_web_api_get_server_list_dummy_filter,
                 }
             ).mock(
@@ -317,12 +294,10 @@ async def api_fixture(
             yield app, reusable_client, openai_mock_router, steam_web_api_mock_router, conn
 
     async with pool_acquire(db_fixture_pool, timeout=_db_timeout) as conn:
-        await conn.execute(
-            f"DROP DATABASE IF EXISTS {_test_db} WITH (FORCE)",
-            timeout=_db_timeout,
-        )
+        await setup.drop_test_db(conn, timeout=_db_timeout)
 
     await db_fixture_pool.close()
+    await test_db_pool.close()
 
 
 @pytest.mark.asyncio
@@ -390,7 +365,7 @@ async def test_api_v1_post_game_invalid_token(api_fixture, caplog) -> None:
         steam_mock_router.get(
             "IGameServersService/GetServerList/v1/",
             params={
-                "key": _steam_web_api_key,
+                "key": setup.steam_web_api_key,
                 "filter": _steam_web_api_get_server_list_dummy_filter,
             }
         ).mock(
@@ -411,7 +386,7 @@ async def test_api_v1_post_game_invalid_token(api_fixture, caplog) -> None:
         steam_mock_router.get(
             "IGameServersService/GetServerList/v1/",
             params={
-                "key": _steam_web_api_key,
+                "key": setup.steam_web_api_key,
                 "filter": _steam_web_api_get_server_list_dummy_filter,
             }
         ).mock(
@@ -444,7 +419,7 @@ async def test_api_v1_post_game_invalid_token(api_fixture, caplog) -> None:
         client_ip="6.0.28.175",
     )
     somebody_elses_token = jwt.encode(
-        key=_sanic_secret,
+        key=setup.test_sanic_secret,
         algorithm="HS256",
         payload={
             "iss": auth.jwt_issuer,
@@ -514,19 +489,18 @@ async def test_api_v1_post_game_chat_message(api_fixture, caplog) -> None:
         # TODO: THIS DOES NOT WORK, PUT THIS IN TEST IN A NEW MODULE?
         # TODO: THAT WOULD ALSO REQUIRE PUTTING THE COMMON TEST SETUP
         #       UTILS IN A SEPARATE MODULE!
+
         # Make sure there aren't any cached Steam Web API results.
         await app_cache.clear()
         del os.environ["STEAM_WEB_API_KEY"]
-        chatgpt_proxy.auth._steam_web_api_key = None
-        importlib.reload(chatgpt_proxy.auth)
-        from chatgpt_proxy.auth import is_real_game_server  # noqa: F401
+        chatgpt_proxy.auth.load_config()
         path = "/api/v1/game/first_game/chat_message"
         data = "my name is dog69\n0\n0\nthis is the actual message!"
         req, resp = await api_app.asgi_client.post(path, data=data)
         assert resp.status == 204
     finally:
-        os.environ["STEAM_WEB_API_KEY"] = _steam_web_api_key
-        chatgpt_proxy.auth._steam_web_api_key = os.environ.get("STEAM_WEB_API_KEY", None)
+        os.environ["STEAM_WEB_API_KEY"] = setup.steam_web_api_key
+        chatgpt_proxy.auth.load_config()
 
 
 @pytest.mark.asyncio

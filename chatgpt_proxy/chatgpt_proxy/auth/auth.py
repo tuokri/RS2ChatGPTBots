@@ -47,9 +47,17 @@ from chatgpt_proxy.utils import get_remote_addr
 jwt_issuer = "ChatGPTProxy"
 jwt_audience = "ChatGPTProxy"
 
-_steam_web_api_key = os.environ.get("STEAM_WEB_API_KEY", None)
-
 _server_list_url = "https://api.steampowered.com/IGameServersService/GetServerList/v1/"
+
+_steam_web_api_key: str | None = None
+
+
+def load_config() -> None:
+    global _steam_web_api_key
+    _steam_web_api_key = os.environ.get("STEAM_WEB_API_KEY", None)
+
+
+load_config()
 
 
 @aiocache.cached(
