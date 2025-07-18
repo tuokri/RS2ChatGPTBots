@@ -69,3 +69,17 @@ class OpenAIQuery:
     request_length: int
     response_length: int
     openai_response_id: str
+
+
+@dataclass(slots=True, frozen=True)
+class GameChatMessage:
+    id: int
+    message: str
+    game_id: str
+    send_time: datetime.datetime
+    sender_name: str
+    sender_team: Team
+    channel: SayType
+
+    def wire_format(self) -> str:
+        return f"{self.sender_name}\n{self.sender_team}\n{self.channel}\n{self.message}"
