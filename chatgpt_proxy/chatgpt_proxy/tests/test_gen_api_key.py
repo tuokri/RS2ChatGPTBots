@@ -21,6 +21,7 @@
 # SOFTWARE.
 
 import datetime
+import hashlib
 import ipaddress
 from typing import AsyncGenerator
 
@@ -78,10 +79,10 @@ async def gen_api_key_fixture() -> AsyncGenerator[asyncpg.Connection]:
 
 
 @pytest.mark.asyncio
-async def test_gen_api_key_async_main(gen_api_key_fixture, capsys):
+async def test_gen_api_key_async_main(gen_api_key_fixture):
     conn = gen_api_key_fixture
 
-    await async_main(
+    token = await async_main(
         game_server_address=ipaddress.IPv4Address("69.69.69.1"),
         game_server_port=69696,
         secret=setup.test_sanic_secret,
@@ -91,8 +92,7 @@ async def test_gen_api_key_async_main(gen_api_key_fixture, capsys):
         name="test_key_blabla",
     )
 
-    # TODO: do something with these?
-    # out, err = capsys.readouterr()
+    assert token
 
     key = await queries.select_game_server_api_key(
         conn=conn,
@@ -100,3 +100,5 @@ async def test_gen_api_key_async_main(gen_api_key_fixture, capsys):
         game_server_port=69696,
     )
     assert key
+
+    assert key["api_key_hash"] == hashlib.sha256(token.encode()).digest()

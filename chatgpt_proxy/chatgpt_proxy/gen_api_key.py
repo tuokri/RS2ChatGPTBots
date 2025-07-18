@@ -46,7 +46,7 @@ async def async_main(
         audience: str,
         expires_at: datetime.datetime,
         name: str | None = None,
-) -> None:
+) -> str:
     conn: Connection | None = None
     url = os.environ["DATABASE_URL"]
     try:
@@ -73,7 +73,7 @@ async def async_main(
             game_server_port=game_server_port,
             name=name,
         )
-        print(token)
+        return token
     finally:
         if conn:
             await conn.close()
@@ -95,7 +95,7 @@ def main(
         name: str | None,
 ) -> None:
     secret = os.environ["SANIC_SECRET"]
-    asyncio.run(async_main(
+    token = asyncio.run(async_main(
         game_server_address=game_server_address,
         game_server_port=game_server_port,
         secret=secret,
@@ -104,6 +104,7 @@ def main(
         expires_at=datetime.datetime.fromtimestamp(expires_at),
         name=name,
     ))
+    print(token)
 
 
 if __name__ == "__main__":
