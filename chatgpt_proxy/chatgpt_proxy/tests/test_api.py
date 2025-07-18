@@ -101,7 +101,6 @@ _token_bad_extra_metadata = jwt.encode(
         "whatthefuck": "hmm?",
     },
 )
-_token_bad_extra_metadata_sha256 = hashlib.sha256(_token.encode()).digest()
 
 _forbidden_game_server_address = ipaddress.IPv4Address("88.99.12.1")
 _forbidden_game_server_port = 6969
