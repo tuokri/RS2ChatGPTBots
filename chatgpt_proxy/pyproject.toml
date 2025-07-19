@@ -5,8 +5,15 @@ description = "ChatGPT proxy server for UnrealScript / UE3 bots."
 readme = "README.md"
 requires-python = ">=3.13"
 license-files = ["LICENSE"]
+
+# TODO: Waiting for Windows support for valkey-glide to be able to use
+# the latest versions of aiocache!
+# See:
+# https://github.com/valkey-io/valkey-glide/issues/3780
+# https://github.com/aio-libs/aiocache/issues/1018
+
 dependencies = [
-    "aiocache",
+    "aiocache[redis]>=0.12.3",
     "asyncpg>=0.30.0",
     "click>=8.2.1",
     "httpx>=0.28.1",
@@ -80,6 +87,3 @@ module = [
     "aiocache.*",
 ]
 ignore_missing_imports = true
-
-[tool.uv.sources]
-aiocache = { git = "https://github.com/aio-libs/aiocache" }
