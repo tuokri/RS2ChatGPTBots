@@ -33,7 +33,7 @@ class Ignored:
     pass
 
 
-ignored = Ignored()
+IGNORED = Ignored()
 
 test_sanic_secret = "dummy"
 test_db = "chatgpt_proxy_tests"
@@ -80,13 +80,23 @@ async def drop_test_db(
     )
 
 
+async def create_test_db(
+        conn: asyncpg.Connection,
+        timeout: float | None = _default_db_timeout
+):
+    await conn.execute(
+        f"CREATE DATABASE {test_db};",
+        timeout=timeout,
+    )
+
+
 # TODO: this is sketchy as fuck, try to come up with a better way?
 def common_test_setup(
-        db_url_: str | Ignored = ignored,
-        test_db_: str | Ignored = ignored,
-        db_test_url_: str | Ignored = ignored,
-        steam_web_api_key_: str | Ignored = ignored,
-        test_sanic_secret_: str | Ignored = ignored,
+        db_url_: str | Ignored = IGNORED,
+        test_db_: str | Ignored = IGNORED,
+        db_test_url_: str | Ignored = IGNORED,
+        steam_web_api_key_: str | Ignored = IGNORED,
+        test_sanic_secret_: str | Ignored = IGNORED,
 ) -> None:
     global db_url
     global db_base_url
@@ -95,29 +105,31 @@ def common_test_setup(
     global steam_web_api_key
     global test_sanic_secret
 
-    if db_url_ is not ignored:
-        db_url = db_url_
+    if db_url_ is not IGNORED:
+        db_url = str(db_url_)
     else:
         # NOTE: avoid messing up DB URL if this is called multiple times
         # from different tests!
+        # TODO: make a cleaner way of handling this!
         db_url = os.environ.get("DATABASE_URL", default_db_url)
         parts = urlparse(db_url)
         parts = parts._replace(path="")
         db_base_url = parts.geturl()
 
-    if db_test_url_ is not ignored:
-        db_test_url = db_test_url_
+    if db_test_url_ is not IGNORED:
+        db_test_url = str(db_test_url_)
     else:
         # NOTE: avoid messing up DB URL if this is called multiple times
         # from different tests!
+        # TODO: make a cleaner way of handling this!
         db_test_url = f"{db_base_url.rstrip("/")}/chatgpt_proxy_tests"
 
-    if test_db_ is not ignored:
-        test_db = test_db_
-    if steam_web_api_key_ is not ignored:
-        steam_web_api_key = steam_web_api_key_
-    if test_sanic_secret_ is not ignored:
-        test_sanic_secret = test_sanic_secret_
+    if test_db_ is not IGNORED:
+        test_db = str(test_db_)
+    if steam_web_api_key_ is not IGNORED:
+        steam_web_api_key = str(steam_web_api_key_)
+    if test_sanic_secret_ is not IGNORED:
+        test_sanic_secret = str(test_sanic_secret_)
 
     os.environ["SANIC_SECRET"] = test_sanic_secret
     os.environ["OPENAI_API_KEY"] = "dummy"

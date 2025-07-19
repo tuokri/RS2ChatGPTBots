@@ -50,10 +50,7 @@ async def gen_api_key_fixture() -> AsyncGenerator[asyncpg.Connection]:
 
     async with pool_acquire(db_fixture_pool, timeout=_db_timeout) as conn:
         await setup.drop_test_db(conn, timeout=_db_timeout)
-        await conn.execute(
-            f"CREATE DATABASE {setup.test_db};",
-            timeout=_db_timeout,
-        )
+        await setup.create_test_db(conn, timeout=_db_timeout)
 
     test_db_pool = await asyncpg.create_pool(
         dsn=setup.db_test_url,
