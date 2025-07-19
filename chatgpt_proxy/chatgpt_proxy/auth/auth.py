@@ -22,6 +22,7 @@
 
 """Provides authentication and authorization for the chatgpt_proxy API server."""
 
+import datetime
 import hashlib
 import ipaddress
 import os
@@ -37,7 +38,6 @@ import httpx
 import jwt
 import sanic
 
-from chatgpt_proxy.cache import app_cache
 from chatgpt_proxy.db import pool_acquire
 from chatgpt_proxy.db import queries
 from chatgpt_proxy.log import logger
@@ -59,12 +59,18 @@ def load_config() -> None:
 
 load_config()
 
+ttl_is_real_game_server = datetime.timedelta(minutes=60).total_seconds()
 
+
+# TODO: waiting for updated aiocache + valkey-glide support on Windows!
+#   - In the meanwhile, only use memory cache!
+#   - See pyproject.toml for more details!
 @aiocache.cached(
-    app_cache,
-    # ttl=, # TODO
+    # cache=app_cache,
+    cache=aiocache.Cache.MEMORY,
+    ttl=ttl_is_real_game_server,
     # NOTE: Only cache the result if the server was successfully verified.
-    skip_cache_func=lambda x: True if not x else False,
+    skip_cache_func=lambda x: x is False,
 )
 async def is_real_game_server(
         client: httpx.AsyncClient,

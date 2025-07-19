@@ -86,7 +86,7 @@ CREATE TABLE IF NOT EXISTS "game_kill"
 CREATE TABLE IF NOT EXISTS "game_player"
 (
     game_id TEXT    NOT NULL,
-    id      INTEGER NOT NULL,
+    id      INTEGER NOT NULL UNIQUE,
     name    TEXT    NOT NULL,
     team    INTEGER NOT NULL,
     score   INTEGER NOT NULL DEFAULT 0,

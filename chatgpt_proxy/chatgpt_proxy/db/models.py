@@ -59,6 +59,9 @@ class GamePlayer:
     team: Team
     score: int
 
+    def wire_format(self) -> str:
+        return f"{self.name}\n{self.team}\n{self.score}"
+
 
 @dataclass(slots=True, frozen=True)
 class OpenAIQuery:

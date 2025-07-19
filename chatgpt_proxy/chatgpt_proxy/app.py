@@ -248,7 +248,7 @@ async def put_game(
         stop_time = start_time + datetime.timedelta(seconds=world_time)
     except Exception as e:
         logger.debug("error parsing game data: {}: {}", type(e).__name__, e)
-        return HTTPResponse(HTTPStatus.BAD_REQUEST)
+        return HTTPResponse(status=HTTPStatus.BAD_REQUEST)
 
     async with pool_acquire(pg_pool) as conn:
         async with conn.transaction():
@@ -276,7 +276,8 @@ async def post_game_message(
         logger.warning("unable to handle request for game with no openai_previous_response_id")
         return HTTPResponse(status=HTTPStatus.SERVICE_UNAVAILABLE)
 
-    level: str = game.level
+    # TODO: why do we need this here?
+    # level: str = game.level
 
     async with pool_acquire(pg_pool) as conn:
         previous_query = await queries.select_openai_query(
@@ -346,7 +347,7 @@ async def post_game_kill(
         kill_time = game.start_time + datetime.timedelta(seconds=world_time)
     except Exception as e:
         logger.debug("failed to parse game kill data: {}: {}", type(e).__name__, e)
-        return sanic.HTTPResponse(HTTPStatus.BAD_REQUEST)
+        return sanic.HTTPResponse(status=HTTPStatus.BAD_REQUEST)
 
     async with pool_acquire(pg_pool) as conn:
         await queries.insert_game_kill(
@@ -364,7 +365,7 @@ async def post_game_kill(
     return sanic.HTTPResponse(status=HTTPStatus.NO_CONTENT)
 
 
-@api_v1.post("/game/<game_id:str>/player/<player_id:int>")
+@api_v1.put("/game/<game_id:str>/player/<player_id:int>")
 @check_and_inject_game
 async def put_game_player(
         request: Request,
@@ -381,11 +382,11 @@ async def put_game_player(
         score = int(parts[2])
     except Exception as e:
         logger.debug("failed to parse game player data: {}: {}", type(e).__name__, e)
-        return sanic.HTTPResponse(HTTPStatus.BAD_REQUEST)
+        return sanic.HTTPResponse(status=HTTPStatus.BAD_REQUEST)
 
     async with pool_acquire(pg_pool) as conn:
         async with conn.transaction():
-            await queries.upsert_game_player(
+            created = await queries.upsert_game_player(
                 conn=conn,
                 game_id=game_id,
                 player_id=player_id,
@@ -394,8 +395,8 @@ async def put_game_player(
                 score=score,
             )
 
-    # TODO: if player exists, send NO_CONTENT, otherwise CREATED.
-    return sanic.HTTPResponse(status=HTTPStatus.NO_CONTENT)
+    status = HTTPStatus.CREATED if created else HTTPStatus.NO_CONTENT
+    return sanic.HTTPResponse(status=status)
 
 
 @api_v1.delete("/game/<game_id:str>/player/<player_id:int>")

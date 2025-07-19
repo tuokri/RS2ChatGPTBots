@@ -393,17 +393,17 @@ async def upsert_game_player(
         team_index: int,
         score: float,
         timeout: float | None = _default_conn_timeout,
-):
-    await conn.execute(
+) -> bool:
+    inserted = await conn.fetchval(
         """
         INSERT INTO "game_player" (game_id, id, name, team, score)
         VALUES ($1, $2, $3, $4, $5)
-        ON CONFLICT DO UPDATE
+        ON CONFLICT (id) DO UPDATE
             SET game_id = excluded.game_id,
-                id      = excluded.id,
                 name    = excluded.name,
                 team    = excluded.team,
-                score   = excluded.score;
+                score   = excluded.score
+        RETURNING (xmax = 0) as inserted;
         """,
         game_id,
         player_id,
@@ -411,4 +411,35 @@ async def upsert_game_player(
         team_index,
         score,
         timeout=timeout,
+    )
+    return bool(inserted)
+
+
+async def select_game_player(
+        conn: Connection,
+        game_id: str,
+        player_id: int,
+        timeout: float | None = _default_conn_timeout,
+) -> models.GamePlayer | None:
+    record = await conn.fetchrow(
+        """
+        SELECT *
+        FROM "game_player"
+        WHERE game_id = $1
+          AND id = $2;
+        """,
+        game_id,
+        player_id,
+        timeout=timeout,
+    )
+
+    if not record:
+        return None
+
+    return models.GamePlayer(
+        game_id=record["game_id"],
+        id=record["id"],
+        name=record["name"],
+        team=models.Team(str(record["team"])),
+        score=record["score"],
     )

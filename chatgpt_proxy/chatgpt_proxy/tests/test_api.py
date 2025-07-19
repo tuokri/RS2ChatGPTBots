@@ -49,9 +49,9 @@ from chatgpt_proxy import auth  # noqa: E402
 from chatgpt_proxy.app import app  # noqa: E402
 from chatgpt_proxy.app import game_id_length  # noqa: E402
 from chatgpt_proxy.cache import app_cache  # noqa: E402
+from chatgpt_proxy.db import models  # noqa: E402
 from chatgpt_proxy.db import pool_acquire  # noqa: E402
 from chatgpt_proxy.db import queries  # noqa: E402
-from chatgpt_proxy.db.models import GameChatMessage  # noqa: E402
 from chatgpt_proxy.db.models import SayType  # noqa: E402
 from chatgpt_proxy.db.models import Team  # noqa: E402
 from chatgpt_proxy.log import logger  # noqa: E402
@@ -169,10 +169,7 @@ async def api_fixture(
 
     async with pool_acquire(db_fixture_pool, timeout=_db_timeout) as conn:
         await setup.drop_test_db(conn, timeout=_db_timeout)
-        await conn.execute(
-            f"CREATE DATABASE {setup.test_db}",
-            timeout=_db_timeout,
-        )
+        await setup.create_test_db(conn, timeout=_db_timeout)
 
     response = openai_responses.Response(
         id="testing_0",
@@ -445,7 +442,7 @@ async def test_api_v1_post_game_chat_message(api_fixture, caplog) -> None:
     api_app, reusable_client, openai_mock_router, steam_mock_router, db_conn = api_fixture
 
     path = "/api/v1/game/first_game/chat_message"
-    data = GameChatMessage(
+    data = models.GameChatMessage(
         id=0,
         sender_name="my name is dog69",
         sender_team=Team.North,
@@ -506,3 +503,52 @@ async def test_api_v1_post_game_chat_message(api_fixture, caplog) -> None:
 async def test_database_maintenance(api_fixture, caplog) -> None:
     # TODO: how to test this in a robust manner?
     pass
+
+
+@pytest.mark.asyncio
+async def test_api_v1_put_game_player(api_fixture, caplog) -> None:
+    caplog.set_level(logging.DEBUG)
+    api_app, reusable_client, openai_mock_router, steam_mock_router, db_conn = api_fixture
+
+    # PUT a new player -> should be 201 CREATED.
+    new_player_id = 69696
+    path = f"/api/v1/game/first_game/player/{new_player_id}"
+    data = "Bob\n1\n-50"
+    req, resp = await api_app.asgi_client.put(path, data=data)
+    assert resp.status == 201
+    player = await queries.select_game_player(
+        conn=db_conn,
+        game_id="first_game",
+        player_id=new_player_id,
+    )
+    assert player == models.GamePlayer(
+        game_id="first_game",
+        id=new_player_id,
+        name="Bob",
+        team=Team.South,
+        score=-50,
+    )
+
+    # PUT existing player -> should be 204 NO CONTENT.
+    data = models.GamePlayer(
+        game_id="first_game",
+        id=new_player_id,
+        name="Bob",
+        team=Team.South,
+        score=6969,
+    ).wire_format()
+    path = f"/api/v1/game/first_game/player/{new_player_id}"
+    req, resp = await api_app.asgi_client.put(path, data=data)
+    assert resp.status == 204
+    player = await queries.select_game_player(
+        conn=db_conn,
+        game_id="first_game",
+        player_id=new_player_id,
+    )
+    assert player == models.GamePlayer(
+        game_id="first_game",
+        id=new_player_id,
+        name="Bob",
+        team=Team.South,
+        score=6969,
+    )
