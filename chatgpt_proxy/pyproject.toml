@@ -6,7 +6,7 @@ readme = "README.md"
 requires-python = ">=3.13"
 license-files = ["LICENSE"]
 dependencies = [
-    "aiocache[redis]>=0.12.3",
+    "aiocache",
     "asyncpg>=0.30.0",
     "click>=8.2.1",
     "httpx>=0.28.1",
@@ -80,3 +80,6 @@ module = [
     "aiocache.*",
 ]
 ignore_missing_imports = true
+
+[tool.uv.sources]
+aiocache = { git = "https://github.com/aio-libs/aiocache" }
