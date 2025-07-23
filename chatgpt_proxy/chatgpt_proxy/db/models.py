@@ -86,3 +86,22 @@ class GameChatMessage:
 
     def wire_format(self) -> str:
         return f"{self.sender_name}\n{self.sender_team}\n{self.channel}\n{self.message}"
+
+
+@dataclass(slots=True, frozen=True)
+class GameObjective:
+    name: str
+    team_state: Team
+
+
+@dataclass(slots=True, frozen=True)
+class GameObjectiveState:
+    game_id: str
+    objectives: list[GameObjective]
+
+    def wire_format(self) -> str:
+        raise NotImplementedError
+
+    @staticmethod
+    def from_wire_format(self, data: str) -> "GameObjectiveState":
+        raise NotImplementedError

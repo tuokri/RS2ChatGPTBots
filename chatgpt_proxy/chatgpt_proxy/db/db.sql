@@ -96,7 +96,7 @@ CREATE TABLE IF NOT EXISTS "game_player"
 
 CREATE TABLE IF NOT EXISTS "game_objective_state"
 (
-    game_id    TEXT     NOT NULL,
+    game_id    TEXT     NOT NULL UNIQUE,
     objectives TEXT[][] NOT NULL,
 
     FOREIGN KEY (game_id) REFERENCES game (id) ON DELETE CASCADE

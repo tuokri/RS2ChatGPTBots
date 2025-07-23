@@ -408,11 +408,20 @@ async def delete_game_player(
         pg_pool: asyncpg.Pool,
 ) -> HTTPResponse:
     async with pool_acquire(pg_pool) as conn:
-        await queries.delete_game_player(
-            conn=conn,
-            game_id=game_id,
-            player_id=player_id,
-        )
+        if not await queries.game_player_exists(
+                conn=conn,
+                game_id=game_id,
+                player_id=player_id,
+        ):
+            return HTTPResponse(status=HTTPStatus.NOT_FOUND)
+
+        async with conn.transaction():
+            await queries.delete_game_player(
+                conn=conn,
+                game_id=game_id,
+                player_id=player_id,
+            )
+
     return HTTPResponse(status=HTTPStatus.NO_CONTENT)
 
 
@@ -471,7 +480,12 @@ async def put_game_objective_state(
     # [("Objective A",0),("Objective B",1),...]
     try:
         data = request.body.decode("utf-8")
+        if not data:
+            raise ValueError("no objective state data")
+
         objs: list[tuple[str, int]] = ast.literal_eval(data)
+
+        # TODO: use GameObjectiveState.from_wire_format() here?
 
         t = type(objs)
         if t is not list:
@@ -494,13 +508,14 @@ async def put_game_objective_state(
 
     async with pool_acquire(pg_pool) as conn:
         async with conn.transaction():
-            await queries.upsert_game_objective_state(
+            created = await queries.upsert_game_objective_state(
                 conn=conn,
                 game_id=game_id,
                 objectives=db_objs,
             )
 
-    return sanic.HTTPResponse(status=HTTPStatus.NO_CONTENT)
+    status = HTTPStatus.CREATED if created else HTTPStatus.NO_CONTENT
+    return sanic.HTTPResponse(status=status)
 
 
 @app.before_server_start

@@ -217,7 +217,7 @@ def check_and_inject_game(func: Callable) -> Callable:
 
                 request.ctx.game = game
 
-            response = f(request, game_id, *args, **kwargs)
+            response = f(request, game_id=game_id, *args, **kwargs)
             if isawaitable(response):
                 return await response
             return response  # pragma: no coverage

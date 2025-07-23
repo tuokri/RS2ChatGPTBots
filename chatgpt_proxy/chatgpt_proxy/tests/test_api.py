@@ -482,10 +482,6 @@ async def test_api_v1_post_game_chat_message(api_fixture, caplog) -> None:
     # only with a warning logged, but don't bother asserting the log message.
     # Run this check for coverage.
     try:
-        # TODO: THIS DOES NOT WORK, PUT THIS IN TEST IN A NEW MODULE?
-        # TODO: THAT WOULD ALSO REQUIRE PUTTING THE COMMON TEST SETUP
-        #       UTILS IN A SEPARATE MODULE!
-
         # Make sure there aren't any cached Steam Web API results.
         await app_cache.clear()
         del os.environ["STEAM_WEB_API_KEY"]
@@ -506,7 +502,7 @@ async def test_database_maintenance(api_fixture, caplog) -> None:
 
 
 @pytest.mark.asyncio
-async def test_api_v1_put_game_player(api_fixture, caplog) -> None:
+async def test_api_v1_put_delete_game_player(api_fixture, caplog) -> None:
     caplog.set_level(logging.DEBUG)
     api_app, reusable_client, openai_mock_router, steam_mock_router, db_conn = api_fixture
 
@@ -552,3 +548,66 @@ async def test_api_v1_put_game_player(api_fixture, caplog) -> None:
         team=Team.South,
         score=6969,
     )
+
+    # Delete existing -> NO CONTENT.
+    path = f"/api/v1/game/first_game/player/{new_player_id}"
+    req, resp = await api_app.asgi_client.delete(path)
+    assert resp.status == 204
+
+    # Second delete, should already be gone -> 404.
+    path = f"/api/v1/game/first_game/player/{new_player_id}"
+    req, resp = await api_app.asgi_client.delete(path)
+    assert resp.status == 404
+
+    # Delete player that never existed -> 404.
+    path = "/api/v1/game/first_game/player/6904234"
+    req, resp = await api_app.asgi_client.delete(path)
+    assert resp.status == 404
+
+
+@pytest.mark.asyncio
+async def test_api_v1_put_game_objective_state(api_fixture, caplog) -> None:
+    caplog.set_level(logging.DEBUG)
+    api_app, reusable_client, openai_mock_router, steam_mock_router, db_conn = api_fixture
+
+    # Empty data -> 400.
+    data = ""
+    path = "/api/v1/game/first_game/objective_state"
+    req, resp = await api_app.asgi_client.put(path, data=data)
+    assert resp.status == 400
+
+    # Empty list (first request) -> clears state -> 201.
+    data = "[]"
+    path = "/api/v1/game/first_game/objective_state"
+    req, resp = await api_app.asgi_client.put(path, data=data)
+    assert resp.status == 201
+
+    # Empty list (subsequent request) -> clears state -> 204.
+    data = "[]"
+    path = "/api/v1/game/first_game/objective_state"
+    req, resp = await api_app.asgi_client.put(path, data=data)
+    assert resp.status == 204
+
+    # Bad data -> 400.
+    data = "asdasd."
+    path = "/api/v1/game/first_game/objective_state"
+    req, resp = await api_app.asgi_client.put(path, data=data)
+    assert resp.status == 400
+
+    # Bad data -> 400.
+    data = "[(),()]"
+    path = "/api/v1/game/first_game/objective_state"
+    req, resp = await api_app.asgi_client.put(path, data=data)
+    assert resp.status == 400
+
+    # Bad data -> 400.
+    data = "["
+    path = "/api/v1/game/first_game/objective_state"
+    req, resp = await api_app.asgi_client.put(path, data=data)
+    assert resp.status == 400
+
+    # Bad data -> 400.
+    data = "[)"
+    path = "/api/v1/game/first_game/objective_state"
+    req, resp = await api_app.asgi_client.put(path, data=data)
+    assert resp.status == 400

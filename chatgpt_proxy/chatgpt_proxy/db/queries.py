@@ -134,19 +134,20 @@ async def upsert_game_objective_state(
         game_id: str,
         objectives: list[list[str]],
         timeout: float | None = _default_conn_timeout,
-):
-    await conn.execute(
+) -> bool:
+    inserted = await conn.fetchval(
         """
         INSERT INTO "game_objective_state" (game_id, objectives)
         VALUES ($1, $2)
-        ON CONFLICT DO UPDATE
-            SET game_id    = excluded.game_id,
-                objectives = excluded.objectives;
+        ON CONFLICT (game_id) DO UPDATE
+            SET objectives = excluded.objectives
+        RETURNING (xmax = 0) as inserted;
         """,
         game_id,
         objectives,
         timeout=timeout,
     )
+    return bool(inserted)
 
 
 async def delete_completed_games(
@@ -443,3 +444,22 @@ async def select_game_player(
         team=models.Team(str(record["team"])),
         score=record["score"],
     )
+
+
+async def game_player_exists(
+        conn: Connection,
+        game_id: str,
+        player_id: int,
+        timeout: float | None = _default_conn_timeout,
+) -> bool:
+    return await conn.fetchval(
+        """
+        SELECT 1
+        FROM "game_player"
+        WHERE game_id = $1
+          AND id = $2;
+        """,
+        game_id,
+        player_id,
+        timeout=timeout,
+    ) is not None
