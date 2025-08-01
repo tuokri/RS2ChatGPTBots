@@ -41,6 +41,7 @@ path = "chatgpt_proxy/_version.py"
 dev = [
     "hatch>=1.14.1",
     "mypy>=1.16.1",
+    "nest-asyncio>=1.6.0",
     "pytest>=8.4.1",
     "pytest-asyncio>=1.0.0",
     "pytest-cov>=6.2.1",

@@ -20,6 +20,7 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
+import asyncio
 import datetime
 import hashlib
 import ipaddress
@@ -30,6 +31,7 @@ from typing import AsyncGenerator
 import asyncpg
 import httpx
 import jwt
+import nest_asyncio
 import openai.types.responses as openai_responses
 import pytest
 import pytest_asyncio
@@ -46,8 +48,11 @@ setup.common_test_setup()
 # noinspection PyUnresolvedReferences
 import chatgpt_proxy  # noqa: E402
 from chatgpt_proxy import auth  # noqa: E402
+from chatgpt_proxy.app import api_v1  # noqa: E402
 from chatgpt_proxy.app import app  # noqa: E402
 from chatgpt_proxy.app import game_id_length  # noqa: E402
+from chatgpt_proxy.app import make_app  # noqa: E402
+from chatgpt_proxy.app import max_ast_literal_eval_size  # noqa: E402
 from chatgpt_proxy.cache import app_cache  # noqa: E402
 from chatgpt_proxy.db import models  # noqa: E402
 from chatgpt_proxy.db import pool_acquire  # noqa: E402
@@ -62,8 +67,10 @@ from chatgpt_proxy.utils import utcnow  # noqa: E402
 
 logger.level("DEBUG")
 
+_asgi_host = "127.0.0.1"
+
 monkey_patch_sanic_testing(
-    asgi_host="127.0.0.1",
+    asgi_host=_asgi_host,
 )
 
 _db_timeout = 30.0
@@ -121,36 +128,16 @@ _token_for_forbidden_server_sha256 = hashlib.sha256(
 _steam_web_api_get_server_list_dummy_filter = (
     f"\\gamedir\\rs2\\gameaddr\\{_game_server_address}:{_game_server_port}")
 
-# TODO: get access log to show up in pytest capture. This does not work.
 app.config.ACCESS_LOG = True
 app.config.OAS = False
 app.config.OAS_AUTODOC = False
 sanic_logger.setLevel(logging.DEBUG)
 sanic_access_logger.setLevel(logging.DEBUG)
 
-# TODO: add this back later if the crash with ReusableClient is resolved.
-# def client_post(
-#         client: ReusableClient,
-#         url: str | httpx.URL,
-#         *args,
-#         headers: dict | None = None,
-#         data: Any | None = None,
-#         **kwargs,
-# ) -> httpx.Response:
-#     if headers is None:
-#         headers = _headers
-#     return client.post(
-#         url,
-#         *args,
-#         headers=headers,
-#         data=data,
-#         **kwargs,
-#     )
-
 # TODO: maybe just use namedtuple?
 ApiFixtureTuple = tuple[
     App,
-    ReusableClient | None,
+    ReusableClient,
     respx.MockRouter,
     respx.MockRouter,
     asyncpg.Connection,
@@ -160,11 +147,15 @@ ApiFixtureTuple = tuple[
 @pytest_asyncio.fixture
 async def api_fixture(
 ) -> AsyncGenerator[ApiFixtureTuple]:
+    loop = asyncio.get_running_loop()
+    nest_asyncio.apply(loop=loop)
+
     db_fixture_pool = await asyncpg.create_pool(
         dsn=setup.db_base_url,
         min_size=1,
         max_size=1,
         timeout=_db_timeout,
+        loop=loop,
     )
 
     async with pool_acquire(db_fixture_pool, timeout=_db_timeout) as conn:
@@ -203,6 +194,7 @@ async def api_fixture(
         min_size=1,
         max_size=1,
         timeout=_db_timeout,
+        loop=loop,
     )
 
     async with pool_acquire(
@@ -233,21 +225,25 @@ async def api_fixture(
             )
 
         app.asgi_client.headers = _headers
-        with (respx.mock(
+        app.asgi_client.loop = loop
+
+        with (respx.MockRouter(
                 base_url="https://api.openai.com/",
                 assert_all_called=False,
         ) as openai_mock_router,
-            respx.mock(
+            respx.MockRouter(
                 base_url="https://api.steampowered.com",
                 assert_all_called=False,
             ) as steam_web_api_mock_router
         ):
+            openai_mock_router.route(host=_asgi_host).pass_through()
             openai_mock_router.post("/v1/responses").mock(
                 return_value=httpx.Response(
                     status_code=200,
                     json=response.model_dump(mode="json"),
                 ))
 
+            steam_web_api_mock_router.route(host=_asgi_host).pass_through()
             steam_web_api_mock_router.get(
                 "IGameServersService/GetServerList/v1/",
                 params={
@@ -284,10 +280,20 @@ async def api_fixture(
                     },
                 ))
 
-            # TODO: this crashes and nest-asyncio does not work! Try to fix later!
-            # reusable_client = ReusableClient(app, asyncio.get_event_loop())
-            reusable_client = None
-            yield app, reusable_client, openai_mock_router, steam_web_api_mock_router, conn
+            # NOTE: can't reuse the same app for ReusableClient!
+            reusable_app = make_app("ChatGPTProxy-Reusable")
+            reusable_app.blueprint(api_v1)
+            reusable_client = ReusableClient(
+                reusable_app,
+                host=_asgi_host,
+                loop=loop,
+                client_kwargs={
+                    "headers": _headers,
+                }
+            )
+
+            with reusable_client:
+                yield app, reusable_client, openai_mock_router, steam_web_api_mock_router, conn
 
     async with pool_acquire(db_fixture_pool, timeout=_db_timeout) as conn:
         await setup.drop_test_db(conn, timeout=_db_timeout)
@@ -573,41 +579,101 @@ async def test_api_v1_put_game_objective_state(api_fixture, caplog) -> None:
     # Empty data -> 400.
     data = ""
     path = "/api/v1/game/first_game/objective_state"
-    req, resp = await api_app.asgi_client.put(path, data=data)
+    req, resp = reusable_client.put(path, data=data)
     assert resp.status == 400
 
     # Empty list (first request) -> clears state -> 201.
     data = "[]"
     path = "/api/v1/game/first_game/objective_state"
-    req, resp = await api_app.asgi_client.put(path, data=data)
+    req, resp = reusable_client.put(path, data=data)
     assert resp.status == 201
 
     # Empty list (subsequent request) -> clears state -> 204.
     data = "[]"
     path = "/api/v1/game/first_game/objective_state"
-    req, resp = await api_app.asgi_client.put(path, data=data)
+    req, resp = reusable_client.put(path, data=data)
+    assert resp.status == 204
+
+    # Valid list (subsequent request) -> 204.
+    neutral_team = int(Team.Neutral)
+    data = f"[('BlaBla',0),('SomeObjective',1),('Neutral Objective',{neutral_team})]"
+    path = "/api/v1/game/first_game/objective_state"
+    req, resp = reusable_client.put(path, data=data)
+    assert resp.status == 204
+
+    # Valid list (subsequent request) -> 2024.
+    data = models.GameObjectiveState(
+        game_id="first_game",
+        objectives=[
+            models.GameObjective(
+                name="BlaBla",
+                team_state=models.Team.North,
+            ),
+            models.GameObjective(
+                name="AnotherObjective",
+                team_state=models.Team.South,
+            ),
+            models.GameObjective(
+                name="THIS IS SOME WEIRD OBJECTIVE 123123",
+                team_state=models.Team.Neutral,
+            ),
+        ]
+    ).wire_format()
+    path = "/api/v1/game/first_game/objective_state"
+    req, resp = reusable_client.put(path, data=data)
     assert resp.status == 204
 
     # Bad data -> 400.
     data = "asdasd."
     path = "/api/v1/game/first_game/objective_state"
-    req, resp = await api_app.asgi_client.put(path, data=data)
+    req, resp = reusable_client.put(path, data=data)
     assert resp.status == 400
 
     # Bad data -> 400.
     data = "[(),()]"
     path = "/api/v1/game/first_game/objective_state"
-    req, resp = await api_app.asgi_client.put(path, data=data)
+    req, resp = reusable_client.put(path, data=data)
     assert resp.status == 400
 
     # Bad data -> 400.
     data = "["
     path = "/api/v1/game/first_game/objective_state"
-    req, resp = await api_app.asgi_client.put(path, data=data)
+    req, resp = reusable_client.put(path, data=data)
     assert resp.status == 400
 
     # Bad data -> 400.
     data = "[)"
     path = "/api/v1/game/first_game/objective_state"
-    req, resp = await api_app.asgi_client.put(path, data=data)
+    req, resp = reusable_client.put(path, data=data)
+    assert resp.status == 400
+
+    # Too much data -> 400.
+    data = "*" * (max_ast_literal_eval_size + 1)
+    path = "/api/v1/game/first_game/objective_state"
+    req, resp = reusable_client.put(path, data=data)
+    assert resp.status == 400
+
+    # Valid but wrong Python object.
+    data = "()"
+    path = "/api/v1/game/first_game/objective_state"
+    req, resp = reusable_client.put(path, data=data)
+    assert resp.status == 400
+
+    # Valid but wrong Python object.
+    data = "[(1,1)]"
+    path = "/api/v1/game/first_game/objective_state"
+    req, resp = reusable_client.put(path, data=data)
+    assert resp.status == 400
+
+    # Valid but wrong Python object.
+    data = "[('ValidString','this_should_be_an_int')]"
+    path = "/api/v1/game/first_game/objective_state"
+    req, resp = reusable_client.put(path, data=data)
+    assert resp.status == 400
+
+    # Valid but wrong Python object.
+    invalid_team_as_int = 696969
+    data = f"[('ValidString',{invalid_team_as_int})]"
+    path = "/api/v1/game/first_game/objective_state"
+    req, resp = reusable_client.put(path, data=data)
     assert resp.status == 400

@@ -131,10 +131,12 @@ async def select_game(
 
 async def upsert_game_objective_state(
         conn: Connection,
-        game_id: str,
-        objectives: list[list[str]],
+        state: models.GameObjectiveState,
         timeout: float | None = _default_conn_timeout,
 ) -> bool:
+    # TODO: re-consider what's the best data format for this in DB?
+    objectives_db_fmt = [obj.wire_format() for obj in state.objectives]
+
     inserted = await conn.fetchval(
         """
         INSERT INTO "game_objective_state" (game_id, objectives)
@@ -143,8 +145,8 @@ async def upsert_game_objective_state(
             SET objectives = excluded.objectives
         RETURNING (xmax = 0) as inserted;
         """,
-        game_id,
-        objectives,
+        state.game_id,
+        objectives_db_fmt,
         timeout=timeout,
     )
     return bool(inserted)

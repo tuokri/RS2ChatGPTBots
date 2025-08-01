@@ -22,6 +22,7 @@
 
 """Read-only models for chatgpt_proxy's 'ad-hoc ORM'."""
 
+import ast
 import datetime
 import ipaddress
 from dataclasses import dataclass
@@ -93,6 +94,11 @@ class GameObjective:
     name: str
     team_state: Team
 
+    # TODO: this is wrong.
+    #   - maybe add custom __str__
+    def wire_format(self) -> str:
+        return f"('{self.name}',{int(self.team_state)})"
+
 
 @dataclass(slots=True, frozen=True)
 class GameObjectiveState:
@@ -100,8 +106,35 @@ class GameObjectiveState:
     objectives: list[GameObjective]
 
     def wire_format(self) -> str:
-        raise NotImplementedError
+        # TODO: too many quotes with this method!
+        return str([(obj.name, int(obj.team_state)) for obj in self.objectives])
 
     @staticmethod
-    def from_wire_format(self, data: str) -> "GameObjectiveState":
-        raise NotImplementedError
+    def from_wire_format(
+            game_id: str,
+            wire_format_data: str,
+    ) -> "GameObjectiveState":
+        raw_objs: list[tuple[str, int]] = ast.literal_eval(wire_format_data)
+
+        t = type(raw_objs)
+        if t is not list:
+            raise ValueError(f"objs: expected list type, got {t}")
+
+        objs = []
+        for obj_name, obj_state in raw_objs:
+            if type(obj_name) is not str:
+                raise ValueError(f"obj_name: expected str type, got {type(obj_name)}")
+            if type(obj_state) is not int:
+                raise ValueError(f"obj_state: expected int type, got {type(obj_state)}")
+
+            obj_state_enum = Team(str(obj_state))
+
+            objs.append(GameObjective(
+                name=obj_name,
+                team_state=obj_state_enum,
+            ))
+
+        return GameObjectiveState(
+            game_id=game_id,
+            objectives=objs,
+        )

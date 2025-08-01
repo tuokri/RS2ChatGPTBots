@@ -23,7 +23,6 @@
 # Implements a simple proxy server for communication between an UnrealScript
 # client and OpenAI servers.
 
-import ast
 import asyncio
 import dataclasses
 import datetime
@@ -47,6 +46,7 @@ from chatgpt_proxy.cache import app_cache
 from chatgpt_proxy.cache import db_cache
 from chatgpt_proxy.db import pool_acquire
 from chatgpt_proxy.db import queries
+from chatgpt_proxy.db.models import GameObjectiveState
 from chatgpt_proxy.db.models import SayType
 from chatgpt_proxy.db.models import Team
 from chatgpt_proxy.log import logger
@@ -59,18 +59,87 @@ from chatgpt_proxy.utils import utcnow
 
 api_v1 = Blueprint("api", version_prefix="/api/v", version=1)
 
-app: App = sanic.Sanic(
-    "ChatGPTProxy",
-    ctx=Context(),
-    request_class=Request,  # type: ignore[arg-type]
-)
-# We don't expect UScript side to send large requests.
-app.config.REQUEST_MAX_SIZE = 1500
-app.config.REQUEST_MAX_HEADER_SIZE = 1500
-app.config.OAS = not is_prod_env
-app.config.SECRET = os.environ["SANIC_SECRET"]
-app.config.JWT_ISSUER = auth.jwt_issuer
-app.config.JWT_AUDIENCE = auth.jwt_audience
+
+def db_maintenance_process(stop_event: EventType) -> None:
+    asyncio.run(db_maintenance(stop_event))
+
+
+def refresh_steam_web_api_cache_process(stop_event: EventType) -> None:
+    asyncio.run(refresh_steam_web_api_cache(stop_event))
+
+
+max_ast_literal_eval_size = 1000
+
+
+def make_app(name: str = "ChatGPTProxy") -> App:
+    _app: App = sanic.Sanic(
+        name,
+        ctx=Context(),
+        request_class=Request,  # type: ignore[arg-type]
+    )
+    # We don't expect UScript side to send large requests.
+    _app.config.REQUEST_MAX_SIZE = 1500
+    _app.config.REQUEST_MAX_HEADER_SIZE = 1500
+    _app.config.OAS = not is_prod_env
+    _app.config.SECRET = os.environ["SANIC_SECRET"]
+    _app.config.JWT_ISSUER = auth.jwt_issuer
+    _app.config.JWT_AUDIENCE = auth.jwt_audience
+
+    @_app.main_process_ready
+    async def main_process_ready(app_: App, _):
+        app_.manager.manage(
+            name="DatabaseMaintenanceProcess",
+            func=db_maintenance_process,
+            kwargs={"stop_event": app_.shared_ctx.bg_process_event},
+            transient=True,
+        )
+        app_.manager.manage(
+            "SteamWebAPICacheRefreshProcess",
+            func=refresh_steam_web_api_cache_process,
+            kwargs={"stop_event": app_.shared_ctx.bg_process_event},
+            transient=True,
+        )
+
+    @_app.main_process_start
+    async def main_process_start(app_: App, _):
+        bg_process_event = mp.Event()
+        app_.shared_ctx.bg_process_event = bg_process_event
+
+    @_app.main_process_stop
+    async def main_process_stop(app_: App, _):
+        app_.shared_ctx.bg_process_event.set()
+
+    @_app.before_server_start
+    async def before_server_start(app_: App, _):
+        api_key = os.environ.get("OPENAI_API_KEY")
+        client = openai.AsyncOpenAI(api_key=api_key)
+        app_.ctx.client = client
+        app_.ext.dependency(client)
+
+        db_url = os.environ.get("DATABASE_URL")
+        pool = await asyncpg.create_pool(dsn=db_url)
+        app_.ctx.pg_pool = pool
+        app_.ext.dependency(pool)
+
+        app_.ctx.http_client = httpx.AsyncClient()
+        app_.ext.dependency(app_.ctx.http_client)
+
+    @_app.before_server_stop
+    async def before_server_stop(app_: App, _):
+        if app_.ctx.client:
+            await app_.ctx.client.close()
+        if app_.ctx.pg_pool:
+            await app_.ctx.pg_pool.close()
+        if app_.ctx.http_client:
+            await app_.ctx.http_client.aclose()
+
+        await app_cache.close()
+        await db_cache.close()
+
+    return _app
+
+
+app = make_app()
 
 # TODO: dynamic model selection?
 openai_model = "gpt-4.1"
@@ -470,7 +539,7 @@ async def put_game_objective_state(
         pg_pool: asyncpg.Pool,
 ) -> HTTPResponse:
     # Defensive check to avoid passing long strings to literal_eval.
-    if len(request.body) > 2000:
+    if len(request.body) > max_ast_literal_eval_size:
         return sanic.HTTPResponse(status=HTTPStatus.BAD_REQUEST)
 
     _ = request.ctx.game  # TODO: needed here?
@@ -483,68 +552,25 @@ async def put_game_objective_state(
         if not data:
             raise ValueError("no objective state data")
 
-        objs: list[tuple[str, int]] = ast.literal_eval(data)
-
-        # TODO: use GameObjectiveState.from_wire_format() here?
-
-        t = type(objs)
-        if t is not list:
-            raise ValueError(f"objs: expected list type, got {t}")
-
-        db_objs = []
-        for obj_name, obj_state in objs:
-            if type(obj_name) is not str:
-                raise ValueError(f"obj_name: expected str type, got {type(obj_name)}")
-            if type(obj_state) is not int:
-                raise ValueError(f"obj_state: expected int type, got {type(obj_state)}")
-
-            obj_state_enum = Team(str(obj_state))
-
-            db_objs.append([obj_name, str(obj_state_enum)])
+        obj_state = GameObjectiveState.from_wire_format(
+            game_id=game_id,
+            wire_format_data=data,
+        )
 
     except Exception as e:
         logger.debug("error parsing objectives data: {}: {}", type(e).__name__, e)
+        logger.opt(exception=e).debug("")  # TODO: should use this more!
         return HTTPResponse(status=HTTPStatus.BAD_REQUEST)
 
     async with pool_acquire(pg_pool) as conn:
         async with conn.transaction():
             created = await queries.upsert_game_objective_state(
                 conn=conn,
-                game_id=game_id,
-                objectives=db_objs,
+                state=obj_state,
             )
 
     status = HTTPStatus.CREATED if created else HTTPStatus.NO_CONTENT
     return sanic.HTTPResponse(status=status)
-
-
-@app.before_server_start
-async def before_server_start(app_: App, _):
-    api_key = os.environ.get("OPENAI_API_KEY")
-    client = openai.AsyncOpenAI(api_key=api_key)
-    app_.ctx.client = client
-    app_.ext.dependency(client)
-
-    db_url = os.environ.get("DATABASE_URL")
-    pool = await asyncpg.create_pool(dsn=db_url)
-    app_.ctx.pg_pool = pool
-    app_.ext.dependency(pool)
-
-    app_.ctx.http_client = httpx.AsyncClient()
-    app_.ext.dependency(app_.ctx.http_client)
-
-
-@app.before_server_stop
-async def before_server_stop(app_: App, _):
-    if app_.ctx.client:
-        await app_.ctx.client.close()
-    if app_.ctx.pg_pool:
-        await app_.ctx.pg_pool.close()
-    if app_.ctx.http_client:
-        await app_.ctx.http_client.aclose()
-
-    await app_cache.close()
-    await db_cache.close()
 
 
 async def db_maintenance(stop_event: EventType) -> None:
@@ -612,42 +638,6 @@ async def api_v1_on_request(request: Request) -> HTTPResponse | None:
 
 
 app.blueprint(api_v1)
-
-
-def db_maintenance_process(stop_event: EventType) -> None:
-    asyncio.run(db_maintenance(stop_event))
-
-
-def refresh_steam_web_api_cache_process(stop_event: EventType) -> None:
-    asyncio.run(refresh_steam_web_api_cache(stop_event))
-
-
-@app.main_process_ready
-async def main_process_ready(app_: App, _):
-    app_.manager.manage(
-        name="DatabaseMaintenanceProcess",
-        func=db_maintenance_process,
-        kwargs={"stop_event": app_.shared_ctx.bg_process_event},
-        transient=True,
-    )
-    app_.manager.manage(
-        "SteamWebAPICacheRefreshProcess",
-        func=refresh_steam_web_api_cache_process,
-        kwargs={"stop_event": app_.shared_ctx.bg_process_event},
-        transient=True,
-    )
-
-
-@app.main_process_start
-async def main_process_start(app_: App, _):
-    bg_process_event = mp.Event()
-    app_.shared_ctx.bg_process_event = bg_process_event
-
-
-@app.main_process_stop
-async def main_process_stop(app_: App, _):
-    app_.shared_ctx.bg_process_event.set()
-
 
 if __name__ == "__main__":
     app.config.INSPECTOR = True
