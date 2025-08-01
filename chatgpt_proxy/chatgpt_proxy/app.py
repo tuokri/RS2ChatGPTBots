@@ -57,6 +57,13 @@ from chatgpt_proxy.utils import get_remote_addr
 from chatgpt_proxy.utils import is_prod_env
 from chatgpt_proxy.utils import utcnow
 
+# TODO: This breaks with nest_asyncio, which is also unmaintained!
+# if platform.system() == "Windows":
+#     # noinspection PyUnresolvedReferences
+#     import winloop  # type: ignore[import-not-found]
+#
+#     winloop.install()
+
 api_v1 = Blueprint("api", version_prefix="/api/v", version=1)
 
 

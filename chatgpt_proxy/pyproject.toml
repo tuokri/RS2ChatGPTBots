@@ -25,6 +25,7 @@ dependencies = [
     "redis[hiredis]>=6.2.0",
     "sanic[ext]>=25.3.0",
     "ujson>=5.10.0",
+    "winloop>=0.2.1 ; platform_system == 'Windows'",
 ]
 
 [build-system]
@@ -86,5 +87,11 @@ ignore_missing_imports = true
 [[tool.mypy.overrides]]
 module = [
     "aiocache.*",
+]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = [
+    "nest_asyncio.*",
 ]
 ignore_missing_imports = true
