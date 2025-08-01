@@ -308,13 +308,13 @@ async def test_api_v1_post_game(api_fixture, caplog) -> None:
     api_app, reusable_client, openai_mock_router, steam_mock_router, db_conn = api_fixture
 
     data = "VNTE-TestSuite\n7777"
-    req, resp = await api_app.asgi_client.post("/api/v1/game", data=data)
+    req, resp = reusable_client.post("/api/v1/game", data=data)
     assert resp.status == 201
 
     game_id, greeting = resp.text.split("\n")
     assert len(game_id) == game_id_length * 2  # Num bytes as hex string.
 
-    req, resp = await api_app.asgi_client.get(f"/api/v1/game/{game_id}")
+    req, resp = reusable_client.get(f"/api/v1/game/{game_id}")
     assert resp.status == 200
     game = resp.json
     assert game
@@ -328,7 +328,7 @@ async def test_api_v1_post_game_invalid_token(api_fixture, caplog) -> None:
     # No token.
     logger.info("testing no token")
     data = "VNTE-TestSuite\n7777"
-    req, resp = await api_app.asgi_client.post(
+    req, resp = reusable_client.post(
         "/api/v1/game",
         data=data,
         headers={
@@ -340,7 +340,7 @@ async def test_api_v1_post_game_invalid_token(api_fixture, caplog) -> None:
     # Bad token (garbage data).
     logger.info("testing bad token")
     data = "VNTE-TestSuite\n7777"
-    req, resp = await api_app.asgi_client.post(
+    req, resp = reusable_client.post(
         "/api/v1/game",
         data=data,
         headers={
@@ -353,7 +353,7 @@ async def test_api_v1_post_game_invalid_token(api_fixture, caplog) -> None:
     # -> token hash check mismatch with database-stored hash.
     logger.info("testing token with extra metadata")
     data = "VNTE-TestSuite\n7777"
-    req, resp = await api_app.asgi_client.post(
+    req, resp = reusable_client.post(
         "/api/v1/game",
         data=data,
         headers={
@@ -380,7 +380,7 @@ async def test_api_v1_post_game_invalid_token(api_fixture, caplog) -> None:
                 },
             ))
         data = "VNTE-WhatTheFuckBro\n7777"
-        req, resp = await api_app.asgi_client.post("/api/v1/game", data=data)
+        req, resp = reusable_client.post("/api/v1/game", data=data)
         assert resp.status == 401
 
     logger.info("testing Steam API returning garbage")
@@ -401,12 +401,12 @@ async def test_api_v1_post_game_invalid_token(api_fixture, caplog) -> None:
                 },
             ))
         data = "VNTE-WhatTheFuckBro\n7777"
-        req, resp = await api_app.asgi_client.post("/api/v1/game", data=data)
+        req, resp = reusable_client.post("/api/v1/game", data=data)
         assert resp.status == 401
 
     logger.info("testing token meant for another IP address (but the token exists in the DB)")
     data = "VNTE-ThisDoesntMatterLol\n7777"
-    req, resp = await api_app.asgi_client.post(
+    req, resp = reusable_client.post(
         "/api/v1/game",
         data=data,
         headers={
@@ -457,31 +457,31 @@ async def test_api_v1_post_game_chat_message(api_fixture, caplog) -> None:
         game_id="first_game",
         send_time=utcnow(),
     ).wire_format()
-    req, resp = await api_app.asgi_client.post(path, data=data)
+    req, resp = reusable_client.post(path, data=data)
     assert resp.status == 204
 
     path_404 = "/api/v1/game/THIS_GAME_DOES_NOT_EXIST/chat_message"
     data = "my name is dog69\n0\n0\nthis is the actual message!"
-    req, resp = await api_app.asgi_client.post(path_404, data=data)
+    req, resp = reusable_client.post(path_404, data=data)
     assert resp.status == 404
 
     path_forbidden = "/api/v1/game/game_from_forbidden_server/chat_message"
     data = "my name is dog69\n0\n0\nthis is the actual message!"
-    req, resp = await api_app.asgi_client.post(path_forbidden, data=data)
+    req, resp = reusable_client.post(path_forbidden, data=data)
     assert resp.status == 401
 
     path = "/api/v1/game/first_game/chat_message"
     invalid_data = "dsfsdsfdsffdsfsdsdf"
-    req, resp = await api_app.asgi_client.post(path, data=invalid_data)
+    req, resp = reusable_client.post(path, data=invalid_data)
     assert resp.status == 400
 
     path = "/api/v1/game/first_game/chat_message"
     empty_data = ""
-    req, resp = await api_app.asgi_client.post(path, data=empty_data)
+    req, resp = reusable_client.post(path, data=empty_data)
     assert resp.status == 400
 
     path = "/api/v1/game/first_game/chat_message"
-    req, resp = await api_app.asgi_client.post(path)  # No data.
+    req, resp = reusable_client.post(path)  # No data.
     assert resp.status == 400
 
     # Steam Web API key is not set -> the result should still be the same,
@@ -494,7 +494,7 @@ async def test_api_v1_post_game_chat_message(api_fixture, caplog) -> None:
         chatgpt_proxy.auth.load_config()
         path = "/api/v1/game/first_game/chat_message"
         data = "my name is dog69\n0\n0\nthis is the actual message!"
-        req, resp = await api_app.asgi_client.post(path, data=data)
+        req, resp = reusable_client.post(path, data=data)
         assert resp.status == 204
     finally:
         os.environ["STEAM_WEB_API_KEY"] = setup.steam_web_api_key
@@ -516,7 +516,7 @@ async def test_api_v1_put_delete_game_player(api_fixture, caplog) -> None:
     new_player_id = 69696
     path = f"/api/v1/game/first_game/player/{new_player_id}"
     data = "Bob\n1\n-50"
-    req, resp = await api_app.asgi_client.put(path, data=data)
+    req, resp = reusable_client.put(path, data=data)
     assert resp.status == 201
     player = await queries.select_game_player(
         conn=db_conn,
@@ -540,7 +540,7 @@ async def test_api_v1_put_delete_game_player(api_fixture, caplog) -> None:
         score=6969,
     ).wire_format()
     path = f"/api/v1/game/first_game/player/{new_player_id}"
-    req, resp = await api_app.asgi_client.put(path, data=data)
+    req, resp = reusable_client.put(path, data=data)
     assert resp.status == 204
     player = await queries.select_game_player(
         conn=db_conn,
@@ -557,17 +557,17 @@ async def test_api_v1_put_delete_game_player(api_fixture, caplog) -> None:
 
     # Delete existing -> NO CONTENT.
     path = f"/api/v1/game/first_game/player/{new_player_id}"
-    req, resp = await api_app.asgi_client.delete(path)
+    req, resp = reusable_client.delete(path)
     assert resp.status == 204
 
     # Second delete, should already be gone -> 404.
     path = f"/api/v1/game/first_game/player/{new_player_id}"
-    req, resp = await api_app.asgi_client.delete(path)
+    req, resp = reusable_client.delete(path)
     assert resp.status == 404
 
     # Delete player that never existed -> 404.
     path = "/api/v1/game/first_game/player/6904234"
-    req, resp = await api_app.asgi_client.delete(path)
+    req, resp = reusable_client.delete(path)
     assert resp.status == 404
 
 
