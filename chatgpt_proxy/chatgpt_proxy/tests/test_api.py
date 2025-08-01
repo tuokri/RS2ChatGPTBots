@@ -48,10 +48,9 @@ setup.common_test_setup()
 # noinspection PyUnresolvedReferences
 import chatgpt_proxy  # noqa: E402
 from chatgpt_proxy import auth  # noqa: E402
-from chatgpt_proxy.app import api_v1  # noqa: E402
 from chatgpt_proxy.app import app  # noqa: E402
 from chatgpt_proxy.app import game_id_length  # noqa: E402
-from chatgpt_proxy.app import make_app  # noqa: E402
+from chatgpt_proxy.app import make_api_v1_app  # noqa: E402
 from chatgpt_proxy.app import max_ast_literal_eval_size  # noqa: E402
 from chatgpt_proxy.cache import app_cache  # noqa: E402
 from chatgpt_proxy.db import models  # noqa: E402
@@ -281,8 +280,7 @@ async def api_fixture(
                 ))
 
             # NOTE: can't reuse the same app for ReusableClient!
-            reusable_app = make_app("ChatGPTProxy-Reusable")
-            reusable_app.blueprint(api_v1)
+            reusable_app = make_api_v1_app("ChatGPTProxy-Reusable")
             reusable_client = ReusableClient(
                 reusable_app,
                 host=_asgi_host,
@@ -318,6 +316,39 @@ async def test_api_v1_post_game(api_fixture, caplog) -> None:
     assert resp.status == 200
     game = resp.json
     assert game
+
+    # Empty data.
+    data = ""
+    req, resp = reusable_client.post("/api/v1/game", data=data)
+    assert resp.status == 400
+
+    # Bad data.
+    data = "dsflkjgjknoe8923u58u234r02opkwepkf\n\r"
+    req, resp = reusable_client.post("/api/v1/game", data=data)
+    assert resp.status == 400
+
+
+@pytest.mark.asyncio
+async def test_api_v1_put_game(api_fixture, caplog) -> None:
+    caplog.set_level(logging.DEBUG)
+    api_app, reusable_client, openai_mock_router, steam_mock_router, db_conn = api_fixture
+
+    # Valid request.
+    world_time = 548.8584
+    data = f"{world_time}"
+    req, resp = reusable_client.put("/api/v1/game/first_game", data=data)
+    assert resp.status == 204
+
+    # Bad data -> 400.
+    world_time = "this is not a float"
+    data = f"{world_time}"
+    req, resp = reusable_client.put("/api/v1/game/first_game", data=data)
+    assert resp.status == 400
+
+    # Non-existent game.
+    data = "this doesn't matter in this case!"
+    req, resp = reusable_client.put("/api/v1/game/asdasdasd1243", data=data)
+    assert resp.status == 404
 
 
 @pytest.mark.asyncio
@@ -570,6 +601,17 @@ async def test_api_v1_put_delete_game_player(api_fixture, caplog) -> None:
     req, resp = reusable_client.delete(path)
     assert resp.status == 404
 
+    # Put with invalid ID (not int) -> 404 (Sanic logic).
+    path = "/api/v1/game/first_game/player/asdasd"
+    req, resp = reusable_client.put(path)
+    assert resp.status == 404
+
+    # Put with invalid data.
+    data = "asdasdasd\n\n\n\n"
+    path = "/api/v1/game/first_game/player/0"
+    req, resp = reusable_client.put(path, data=data)
+    assert resp.status == 400
+
 
 @pytest.mark.asyncio
 async def test_api_v1_put_game_objective_state(api_fixture, caplog) -> None:
@@ -677,3 +719,33 @@ async def test_api_v1_put_game_objective_state(api_fixture, caplog) -> None:
     path = "/api/v1/game/first_game/objective_state"
     req, resp = reusable_client.put(path, data=data)
     assert resp.status == 400
+
+
+@pytest.mark.asyncio
+async def test_api_v1_post_game_kill(api_fixture, caplog) -> None:
+    caplog.set_level(logging.DEBUG)
+    api_app, reusable_client, openai_mock_router, steam_mock_router, db_conn = api_fixture
+
+    # Empty data -> 400.
+    data = ""
+    path = "/api/v1/game/first_game/kill"
+    req, resp = reusable_client.post(path, data=data)
+    assert resp.status == 400
+
+    # Bad data -> 400.
+    data = "\n\n\nasd\n"
+    path = "/api/v1/game/first_game/kill"
+    req, resp = reusable_client.post(path, data=data)
+    assert resp.status == 400
+
+    # Valid request.
+    data = "353.4503560\nSome guy lmao\nI'mDead:(\n0\n1\nRODmgType_SomeTypeLol\n88.53"
+    path = "/api/v1/game/first_game/kill"
+    req, resp = reusable_client.post(path, data=data)
+    assert resp.status == 204
+
+    # Valid request (teamkill).
+    data = "353.4503560\nSome guy lmao\nI'mDead:(\n1\n1\nRODmgType_SomeTypeLol\n88.53"
+    path = "/api/v1/game/first_game/kill"
+    req, resp = reusable_client.post(path, data=data)
+    assert resp.status == 204

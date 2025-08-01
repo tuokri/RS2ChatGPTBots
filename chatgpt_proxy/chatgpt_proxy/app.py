@@ -78,7 +78,7 @@ def refresh_steam_web_api_cache_process(stop_event: EventType) -> None:
 max_ast_literal_eval_size = 1000
 
 
-def make_app(name: str = "ChatGPTProxy") -> App:
+def make_api_v1_app(name: str = "ChatGPTProxy") -> App:
     _app: App = sanic.Sanic(
         name,
         ctx=Context(),
@@ -143,10 +143,10 @@ def make_app(name: str = "ChatGPTProxy") -> App:
         await app_cache.close()
         await db_cache.close()
 
+    _app.blueprint(api_v1)
+
     return _app
 
-
-app = make_app()
 
 # TODO: dynamic model selection?
 openai_model = "gpt-4.1"
@@ -310,14 +310,7 @@ async def put_game(
     # it's marked as finished by the game server.
     # TODO: make this support other fields too if needed.
 
-    async with pool_acquire(pg_pool) as conn:
-        game = await queries.select_game(
-            conn=conn,
-            game_id=game_id,
-        )
-        if not game:
-            return HTTPResponse(status=HTTPStatus.NOT_FOUND)
-        start_time = game.start_time
+    start_time = request.ctx.game.start_time
 
     try:
         world_time = float(request.body.decode("utf-8"))
@@ -644,7 +637,7 @@ async def api_v1_on_request(request: Request) -> HTTPResponse | None:
     return None
 
 
-app.blueprint(api_v1)
+app = make_api_v1_app()
 
 if __name__ == "__main__":
     app.config.INSPECTOR = True
