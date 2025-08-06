@@ -600,6 +600,12 @@ async def test_api_v1_put_delete_game_player(api_fixture, caplog) -> None:
     path = "/api/v1/game/first_game/player/6904234"
     req, resp = reusable_client.delete(path)
     assert resp.status == 404
+    player = await queries.select_game_player(
+        conn=db_conn,
+        game_id="first_game",
+        player_id=6904234,
+    )
+    assert player is None
 
     # Put with invalid ID (not int) -> 404 (Sanic logic).
     path = "/api/v1/game/first_game/player/asdasd"
