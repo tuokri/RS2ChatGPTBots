@@ -149,7 +149,7 @@ def make_api_v1_app(name: str = "ChatGPTProxy") -> App:
 
 
 # TODO: dynamic model selection?
-openai_model = "gpt-4.1"
+openai_model = "gpt-5-nano"
 openai_timeout = 60.0  # TODO: this might be way too low?
 
 # Rough API design:
