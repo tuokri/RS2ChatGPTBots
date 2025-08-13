@@ -143,6 +143,47 @@ ApiFixtureTuple = tuple[
 ]
 
 
+def patch_openai_response_output_text(
+        mock_router: respx.MockRouter,
+        output_text: str,
+        method: str,
+        status_code: int = 200,
+):
+    response = openai_responses.Response(
+        id="testing_0",
+        model="gpt-4.1",
+        created_at=utcnow().timestamp(),
+        object="response",
+        error=None,
+        instructions=None,
+        parallel_tool_calls=False,
+        tool_choice="auto",
+        tools=[],
+        output=[
+            openai_responses.ResponseOutputMessage(
+                id="msg_0_testing_0",
+                content=[
+                    openai_responses.ResponseOutputText(
+                        annotations=[],
+                        text=output_text,
+                        type="output_text",
+                    ),
+                ],
+                role="assistant",
+                status="completed",
+                type="message",
+            ),
+        ],
+    )
+
+    meth = getattr(mock_router, method)
+    meth("/v1/responses").mock(
+        return_value=httpx.Response(
+            status_code=status_code,
+            json=response.model_dump(mode="json"),
+        ))
+
+
 @pytest_asyncio.fixture
 async def api_fixture(
 ) -> AsyncGenerator[ApiFixtureTuple]:
@@ -160,33 +201,6 @@ async def api_fixture(
     async with pool_acquire(db_fixture_pool, timeout=_db_timeout) as conn:
         await setup.drop_test_db(conn, timeout=_db_timeout)
         await setup.create_test_db(conn, timeout=_db_timeout)
-
-    response = openai_responses.Response(
-        id="testing_0",
-        model="gpt-4.1",
-        created_at=utcnow().timestamp(),
-        object="response",
-        error=None,
-        instructions=None,
-        parallel_tool_calls=False,
-        tool_choice="auto",
-        tools=[],
-        output=[
-            openai_responses.ResponseOutputMessage(
-                id="msg_0_testing_0",
-                content=[
-                    openai_responses.ResponseOutputText(
-                        annotations=[],
-                        text="This is a mocked test message!",
-                        type="output_text",
-                    ),
-                ],
-                role="assistant",
-                status="completed",
-                type="message",
-            ),
-        ],
-    )
 
     test_db_pool = await asyncpg.create_pool(
         dsn=setup.db_test_url,
@@ -236,11 +250,11 @@ async def api_fixture(
             ) as steam_web_api_mock_router
         ):
             openai_mock_router.route(host=_asgi_host).pass_through()
-            openai_mock_router.post("/v1/responses").mock(
-                return_value=httpx.Response(
-                    status_code=200,
-                    json=response.model_dump(mode="json"),
-                ))
+            patch_openai_response_output_text(
+                mock_router=openai_mock_router,
+                output_text="This is a mocked test message!",
+                method="post",
+            )
 
             steam_web_api_mock_router.route(host=_asgi_host).pass_through()
             steam_web_api_mock_router.get(
@@ -532,10 +546,11 @@ async def test_api_v1_post_game_chat_message(api_fixture, caplog) -> None:
         chatgpt_proxy.auth.load_config()
 
 
-@pytest.mark.asyncio
-async def test_database_maintenance(api_fixture, caplog) -> None:
-    # TODO: how to test this in a robust manner?
-    pass
+# TODO: make a dedicated test suite for "end-to-end" tests with
+#   a 'real' production setup!
+# @pytest.mark.asyncio
+# async def test_database_maintenance(api_fixture, caplog) -> None:
+#     pass
 
 
 @pytest.mark.asyncio
@@ -755,3 +770,76 @@ async def test_api_v1_post_game_kill(api_fixture, caplog) -> None:
     path = "/api/v1/game/first_game/kill"
     req, resp = reusable_client.post(path, data=data)
     assert resp.status == 204
+
+
+@pytest.mark.asyncio
+async def test_api_v1_game_message(api_fixture, caplog) -> None:
+    caplog.set_level(logging.DEBUG)
+    api_app, reusable_client, openai_mock_router, steam_mock_router, db_conn = api_fixture
+
+    # Non-existent game.
+    data = ""
+    path = "/api/v1/game/235235252345234234/message"
+    req, resp = reusable_client.post(path, data=data)
+    assert resp.status == 404
+
+    # Game was not initialized -> 503 (data does not matter here).
+    data = ""
+    path = "/api/v1/game/first_game/message"
+    req, resp = reusable_client.post(path, data=data)
+    assert resp.status == 503
+
+    # Initialize game by setting a fake openai_previous_response_id.
+    # And creating the corresponding query entry.
+    await db_conn.execute(
+        """
+        UPDATE "game"
+        SET openai_previous_response_id = 'pytest_dummy_openapi_response_id'
+        WHERE id = 'first_game';
+        """
+    )
+
+    # Sneak in a request here, should be 503 since the query does not exist!
+    data = ""
+    path = "/api/v1/game/first_game/message"
+    req, resp = reusable_client.post(path, data=data)
+    assert resp.status == 503
+
+    await db_conn.execute(
+        """
+        INSERT INTO "openai_query" (time,
+                                    game_id,
+                                    game_server_address,
+                                    game_server_port,
+                                    request_length,
+                                    response_length,
+                                    openai_response_id)
+        VALUES (NOW(),
+                'first_game',
+                INET '127.0.0.1',
+                7777,
+                69,
+                6969,
+                'pytest_dummy_openapi_response_id');
+        """
+    )
+
+    # Initialized game, bad data -> 400.
+    data = ""
+    path = "/api/v1/game/first_game/message"
+    req, resp = reusable_client.post(path, data=data)
+    assert resp.status == 400
+
+    output_text = "YO wtf ayo ayyo yo \n\n\nasdblasld\t!"
+    patch_openai_response_output_text(
+        mock_router=openai_mock_router,
+        output_text=output_text,
+        method="post",
+    )
+    # Initialized game, good data -> 200.
+    todo_prompt = "jksdfkljsdlkf"  # TODO: PUT AN ACTUAL PROMPT HERE!
+    data = f"{SayType.ALL}\n{Team.North}\nI AM SOME GUY LOL\n{todo_prompt}"
+    path = "/api/v1/game/first_game/message"
+    req, resp = reusable_client.post(path, data=data)
+    assert resp.status == 200
+    assert resp.text.split("\n")[-1] == output_text.replace("\n", " ")

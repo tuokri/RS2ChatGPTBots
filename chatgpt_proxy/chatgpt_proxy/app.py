@@ -64,6 +64,12 @@ from chatgpt_proxy.utils import utcnow
 #
 #     winloop.install()
 
+# TODO: need to come up with a more consistent way for logging errors
+#   from request validation, etc.:
+#       - Log basic error info at info level.
+#       - Log the stack trace at debug level (use Sentry for this in prod?)
+#       - Consider Sentry for logging all other unhandled errors!
+
 api_v1 = Blueprint("api", version_prefix="/api/v", version=1)
 
 
@@ -338,6 +344,8 @@ async def post_game_message(
         pg_pool: asyncpg.Pool,
         client: openai.AsyncOpenAI,
 ) -> HTTPResponse:
+    # TODO: full implementation! Prompt building!
+
     game = request.ctx.game
 
     previous_response_id: str | None = game.openai_previous_response_id
@@ -345,8 +353,7 @@ async def post_game_message(
         logger.warning("unable to handle request for game with no openai_previous_response_id")
         return HTTPResponse(status=HTTPStatus.SERVICE_UNAVAILABLE)
 
-    # TODO: why do we need this here?
-    # level: str = game.level
+    level: str = game.level
 
     async with pool_acquire(pg_pool) as conn:
         previous_query = await queries.select_openai_query(
@@ -361,11 +368,16 @@ async def post_game_message(
         # TODO: pick which kills and chat messages we should inject
         #       into the prompt based on the timestamp.
 
-        data_in = request.body.decode("utf-8").split("\n")
-        say_type = SayType(data_in[0])
-        say_team = Team(data_in[1])
-        say_name = data_in[2]
-        prompt = data_in[3]
+        try:
+            data_in = request.body.decode("utf-8").split("\n")
+            say_type = SayType(data_in[0])
+            say_team = Team(data_in[1])
+            say_name = data_in[2]
+            prompt = data_in[3]
+        except Exception as e:
+            logger.info("error parsing game message data: {}: {}", type(e).__name__, e)
+            # TODO: debug log stack trace or something?
+            return HTTPResponse(status=HTTPStatus.BAD_REQUEST)
 
         async with conn.transaction():
             # TODO: how to best use instruction param here?
@@ -386,7 +398,8 @@ async def post_game_message(
                 openai_response_id=resp.id,
             )
 
-    resp_data = f"{say_type}\n{say_team}\n{say_name}\nMESSAGE"  # TODO
+    msg = resp.output_text.replace("\n", " ")
+    resp_data = f"{say_type}\n{say_team}\n{say_name}\n{msg}"
 
     return sanic.text(
         resp_data,
