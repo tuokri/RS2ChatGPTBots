@@ -244,7 +244,6 @@ async def post_game(
         client: openai.AsyncOpenAI,
 ) -> HTTPResponse:
     try:
-        # level\nserver_game_port
         data = request.body.decode("utf-8")
         level, port = data.split("\n")
         game_port = int(port)
@@ -269,8 +268,7 @@ async def post_game(
                 openai_previous_response_id=None,
             )
 
-        # TODO: we need to do an OpenAI query here. We send initial
-        #   game state to the LLM, and ask it for a short greeting message.
+        # TODO: Send initial game state to the LLM, and ask it for a short greeting message.
         async with conn.transaction():
             prompt = "Write a short poem of 100 letters or less."  # TODO
             openai_resp = await client.responses.create(
@@ -368,6 +366,11 @@ async def post_game_message(
         # TODO: pick which kills and chat messages we should inject
         #       into the prompt based on the timestamp.
 
+        candidate_kills = await queries.select_game_kills(
+            conn=conn,
+            kill_time_from=previous_query.time,
+        )
+
         try:
             data_in = request.body.decode("utf-8").split("\n")
             say_type = SayType(data_in[0])
@@ -378,6 +381,13 @@ async def post_game_message(
             logger.info("error parsing game message data: {}: {}", type(e).__name__, e)
             # TODO: debug log stack trace or something?
             return HTTPResponse(status=HTTPStatus.BAD_REQUEST)
+
+        # TODO: format prompt here, taking maximum length into account!
+        #   E.g.: (rough drafts):
+        # Format kills table -> remove length from remaining budget.
+        # Calculate budget for remaining fields (weighted budgets).
+        max_chat_messages_to_add = 0  # Calculate budget.
+        max_kills_to_add = 0  # Calculate budget.
 
         async with conn.transaction():
             # TODO: how to best use instruction param here?

@@ -138,3 +138,16 @@ class GameObjectiveState:
             game_id=game_id,
             objectives=objs,
         )
+
+
+@dataclass(slots=True, frozen=True)
+class GameKill:
+    id: int
+    game_id: str
+    kill_time: datetime.datetime
+    killer_name: str
+    victim_name: str
+    killer_team: Team
+    victim_team: Team
+    damage_type: str
+    kill_distance_m: float

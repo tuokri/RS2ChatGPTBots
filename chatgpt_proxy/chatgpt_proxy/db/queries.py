@@ -80,7 +80,7 @@ def build_update_game_query(
         openai_previous_response_id: str | Ignored = IGNORED,
 ) -> Query:
     game = Table(name="game")
-    query = Query.update(game)
+    query = game.update()
     if stop_time is not IGNORED:
         query = query.set(game.stop_time, stop_time)
     if openai_previous_response_id is not IGNORED:
@@ -465,3 +465,25 @@ async def game_player_exists(
         player_id,
         timeout=timeout,
     ) is not None
+
+
+async def select_game_kills(
+        conn: Connection,
+        kill_time_from: datetime.datetime | None = None,
+        timeout: float | None = _default_conn_timeout,
+) -> list[models.GameKill]:
+    game_kill = Table(name="game_kill")
+    query = game_kill.select()
+    if kill_time_from is not None:
+        query = query.where(game_kill.kill_time >= kill_time_from)
+
+    records = await conn.fetchmany(
+        str(query),
+        (),
+        timeout=timeout
+    )
+
+    return [
+        models.GameKill(**record)
+        for record in records
+    ]
