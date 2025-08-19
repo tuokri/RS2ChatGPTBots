@@ -20,7 +20,7 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-"""Read-only models for chatgpt_proxy's 'ad-hoc ORM'."""
+"""Read-only models for chatgpt_proxy's 'adhoc ORM'."""
 
 import ast
 import datetime
