@@ -1,0 +1,7 @@
+version: 2
+
+updates:
+  - package-ecosystem: "uv"
+    directory: "/chatgpt_proxy/"
+    schedule:
+      interval: "weekly"
