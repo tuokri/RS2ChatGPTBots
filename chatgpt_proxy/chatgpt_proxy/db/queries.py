@@ -349,13 +349,14 @@ async def insert_game_kill(
         damage_type: str,
         kill_distance_m: float,
         timeout: float | None = _default_conn_timeout,
-):
-    await conn.execute(
+) -> int:
+    return await conn.fetchval(
         """
         INSERT INTO "game_kill"
         (game_id, kill_time, killer_name, victim_name, killer_team,
          victim_team, damage_type, kill_distance_m)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8);
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        RETURNING id;
         """,
         game_id,
         kill_time,
@@ -469,18 +470,20 @@ async def game_player_exists(
 
 async def select_game_kills(
         conn: Connection,
+        game_id: str | None = None,
         kill_time_from: datetime.datetime | None = None,
         timeout: float | None = _default_conn_timeout,
 ) -> list[models.GameKill]:
     game_kill = Table(name="game_kill")
-    query = game_kill.select()
+    query = game_kill.select("*")
+    if game_id is not None:
+        query = query.where(game_kill.game_id == game_id)
     if kill_time_from is not None:
         query = query.where(game_kill.kill_time >= kill_time_from)
 
-    records = await conn.fetchmany(
+    records = await conn.fetch(
         str(query),
-        (),
-        timeout=timeout
+        timeout=timeout,
     )
 
     return [
@@ -491,18 +494,20 @@ async def select_game_kills(
 
 async def select_game_chat_messages(
         conn: Connection,
+        game_id: str | None = None,
         send_time_from: datetime.datetime | None = None,
         timeout: float | None = _default_conn_timeout,
 ) -> list[models.GameChatMessage]:
     game_chat_message = Table(name="game_chat_message")
-    query = game_chat_message.select()
+    query = game_chat_message.select("*")
+    if game_id is not None:
+        query = query.where(game_chat_message.game_id == game_id)
     if send_time_from is not None:
         query = query.where(game_chat_message.send_time >= send_time_from)
 
-    records = await conn.fetchmany(
+    records = await conn.fetch(
         str(query),
-        (),
-        timeout=timeout
+        timeout=timeout,
     )
 
     return [

@@ -764,12 +764,16 @@ async def test_api_v1_post_game_kill(api_fixture, caplog) -> None:
     path = "/api/v1/game/first_game/kill"
     req, resp = reusable_client.post(path, data=data)
     assert resp.status == 204
+    kills = await queries.select_game_kills(conn=db_conn, game_id="first_game")
+    assert kills
 
     # Valid request (teamkill).
     data = "353.4503560\nSome guy lmao\nI'mDead:(\n1\n1\nRODmgType_SomeTypeLol\n88.53"
     path = "/api/v1/game/first_game/kill"
     req, resp = reusable_client.post(path, data=data)
     assert resp.status == 204
+    kills = await queries.select_game_kills(conn=db_conn, game_id="first_game")
+    assert kills
 
 
 @pytest.mark.asyncio
@@ -789,7 +793,7 @@ async def test_api_v1_game_message(api_fixture, caplog) -> None:
     req, resp = reusable_client.post(path, data=data)
     assert resp.status == 503
 
-    # Initialize game by setting a fake openai_previous_response_id.
+    # Initialize the game by setting a fake openai_previous_response_id.
     # And creating the corresponding query entry.
     await db_conn.execute(
         """
@@ -799,7 +803,7 @@ async def test_api_v1_game_message(api_fixture, caplog) -> None:
         """
     )
 
-    # Sneak in a request here, should be 503 since the query does not exist!
+    # Sneak in a request here -> should be 503 since the query does not exist!
     data = ""
     path = "/api/v1/game/first_game/message"
     req, resp = reusable_client.post(path, data=data)
@@ -814,7 +818,7 @@ async def test_api_v1_game_message(api_fixture, caplog) -> None:
                                     request_length,
                                     response_length,
                                     openai_response_id)
-        VALUES (NOW(),
+        VALUES (NOW() AT TIME ZONE 'UTC',
                 'first_game',
                 INET '127.0.0.1',
                 7777,
@@ -839,6 +843,37 @@ async def test_api_v1_game_message(api_fixture, caplog) -> None:
     # Initialized game, good data -> 200.
     todo_prompt = "jksdfkljsdlkf"  # TODO: PUT AN ACTUAL PROMPT HERE!
     data = f"{SayType.ALL}\n{Team.North}\nI AM SOME GUY LOL\n{todo_prompt}"
+    path = "/api/v1/game/first_game/message"
+    req, resp = reusable_client.post(path, data=data)
+    assert resp.status == 200
+    assert resp.text.split("\n")[-1] == output_text.replace("\n", " ")
+
+    # Valid request, with some messages and kills belonging to the game.
+    await queries.insert_game_kill(
+        conn=db_conn,
+        game_id="first_game",
+        kill_time=utcnow(),
+        killer_name="SomeGuy69_420",
+        victim_name="Poor Non-existent Guy",
+        killer_team=int(Team.South),
+        victim_team=int(Team.North),
+        damage_type="RODmgType_RPGOrSomethingWhoCares",
+        kill_distance_m=6969.420,
+    )
+    await queries.insert_game_kill(
+        conn=db_conn,
+        game_id="first_game",
+        kill_time=utcnow(),
+        killer_name="dfgmklfdgmkldfg",
+        victim_name="+o0234uio2j3jof",
+        killer_team=int(Team.North),
+        victim_team=int(Team.North),
+        damage_type="RODmgType_XXX",
+        kill_distance_m=0.1111111111111111111111111111111,
+    )
+
+    todo_prompt = "pkodfgkopdfgkop0239485"  # TODO: PUT AN ACTUAL PROMPT HERE!
+    data = f"{SayType.TEAM}\n{Team.South}\nSomeFakeNameForTheAllKnowingAiHere\n{todo_prompt}"
     path = "/api/v1/game/first_game/message"
     req, resp = reusable_client.post(path, data=data)
     assert resp.status == 200

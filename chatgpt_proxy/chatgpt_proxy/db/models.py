@@ -85,6 +85,14 @@ class GameChatMessage:
     sender_team: Team
     channel: SayType
 
+    def as_markdown_dict(self) -> dict:
+        return {
+            "Message": self.message,
+            "Sender:": self.sender_name,
+            "Team:": self.sender_team,
+            "Channel:": self.channel,
+        }
+
     def wire_format(self) -> str:
         return f"{self.sender_name}\n{self.sender_team}\n{self.channel}\n{self.message}"
 
@@ -151,3 +159,15 @@ class GameKill:
     victim_team: Team
     damage_type: str
     kill_distance_m: float
+
+    def as_markdown_dict(self) -> dict:
+        # TODO: also do this for other well known damage type prefixes?
+        dmg_type = self.damage_type.replace("RODmgType_", "")
+        return {
+            "Killer": self.killer_name,
+            "Victim": self.victim_name,
+            "Killer Team:": self.killer_team,
+            "Victim Team:": self.victim_team,
+            "Damage Type:": dmg_type,
+            "Kill Distance (m):": round(self.kill_distance_m, 1),
+        }

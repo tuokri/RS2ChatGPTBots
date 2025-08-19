@@ -31,11 +31,13 @@ import os
 import secrets
 from http import HTTPStatus
 from multiprocessing.synchronize import Event as EventType
+from pprint import pprint
 
 import asyncpg
 import httpx
 import openai
 import sanic
+from py_markdown_table.markdown_table import markdown_table
 from sanic import Blueprint
 from sanic.response import HTTPResponse
 
@@ -362,18 +364,6 @@ async def post_game_message(
             logger.warning("cannot find OpenAI query for id: {}", previous_response_id)
             return HTTPResponse(status=HTTPStatus.SERVICE_UNAVAILABLE)
 
-        # TODO: pick which kills and chat messages we should inject
-        #       into the prompt based on the timestamp.
-
-        candidate_kills = await queries.select_game_kills(
-            conn=conn,
-            kill_time_from=previous_query.time,
-        )
-        candidate_msgs = await queries.select_game_chat_messages(
-            conn=conn,
-            send_time_from=previous_query.time,
-        )
-
         try:
             data_in = request.body.decode("utf-8").split("\n")
             say_type = SayType(data_in[0])
@@ -384,6 +374,34 @@ async def post_game_message(
             logger.info("error parsing game message data: {}: {}", type(e).__name__, e)
             # TODO: debug log stack trace or something?
             return HTTPResponse(status=HTTPStatus.BAD_REQUEST)
+
+        # TODO: pick which kills and chat messages we should inject
+        #       into the prompt based on the timestamp.
+
+        candidate_kills = await queries.select_game_kills(
+            conn=conn,
+            game_id=game.id,
+            kill_time_from=previous_query.time,
+        )
+        pprint(candidate_kills)
+        candidate_msgs = await queries.select_game_chat_messages(
+            conn=conn,
+            send_time_from=previous_query.time,
+        )
+        pprint(candidate_kills)
+
+        if candidate_kills:
+            kills_table = markdown_table([
+                kill.as_markdown_dict()
+                for kill in candidate_kills
+            ]).get_markdown()
+            pprint(kills_table)
+        if candidate_msgs:
+            msgs_table = markdown_table([
+                msg.as_markdown_dict()
+                for msg in candidate_msgs
+            ])
+            pprint(msgs_table)
 
         # TODO: format prompt here, taking maximum length into account!
         #   E.g.: (rough drafts):
@@ -445,17 +463,18 @@ async def post_game_kill(
         return sanic.HTTPResponse(status=HTTPStatus.BAD_REQUEST)
 
     async with pool_acquire(pg_pool) as conn:
-        await queries.insert_game_kill(
-            conn=conn,
-            game_id=game_id,
-            kill_time=kill_time,
-            killer_name=killer_name,
-            victim_name=victim_name,
-            killer_team=int(killer_team),
-            victim_team=int(victim_team),
-            damage_type=damage_type,
-            kill_distance_m=kill_distance_m,
-        )
+        async with conn.transaction():
+            await queries.insert_game_kill(
+                conn=conn,
+                game_id=game_id,
+                kill_time=kill_time,
+                killer_name=killer_name,
+                victim_name=victim_name,
+                killer_team=int(killer_team),
+                victim_team=int(victim_team),
+                damage_type=damage_type,
+                kill_distance_m=kill_distance_m,
+            )
 
     return sanic.HTTPResponse(status=HTTPStatus.NO_CONTENT)
 
