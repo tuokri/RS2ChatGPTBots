@@ -487,3 +487,25 @@ async def select_game_kills(
         models.GameKill(**record)
         for record in records
     ]
+
+
+async def select_game_chat_messages(
+        conn: Connection,
+        send_time_from: datetime.datetime | None = None,
+        timeout: float | None = _default_conn_timeout,
+) -> list[models.GameChatMessage]:
+    game_chat_message = Table(name="game_chat_message")
+    query = game_chat_message.select()
+    if send_time_from is not None:
+        query = query.where(game_chat_message.send_time >= send_time_from)
+
+    records = await conn.fetchmany(
+        str(query),
+        (),
+        timeout=timeout
+    )
+
+    return [
+        models.GameChatMessage(**record)
+        for record in records
+    ]

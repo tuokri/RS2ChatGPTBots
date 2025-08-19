@@ -362,13 +362,16 @@ async def post_game_message(
             logger.warning("cannot find OpenAI query for id: {}", previous_response_id)
             return HTTPResponse(status=HTTPStatus.SERVICE_UNAVAILABLE)
 
-        prev_query_time = previous_query.time
         # TODO: pick which kills and chat messages we should inject
         #       into the prompt based on the timestamp.
 
         candidate_kills = await queries.select_game_kills(
             conn=conn,
             kill_time_from=previous_query.time,
+        )
+        candidate_msgs = await queries.select_game_chat_messages(
+            conn=conn,
+            send_time_from=previous_query.time,
         )
 
         try:
