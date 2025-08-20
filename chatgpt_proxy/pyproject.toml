@@ -95,3 +95,9 @@ module = [
     "nest_asyncio.*",
 ]
 ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = [
+    "py_markdown_table.*",
+]
+ignore_missing_imports = true
