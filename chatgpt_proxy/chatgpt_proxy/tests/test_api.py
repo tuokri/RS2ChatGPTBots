@@ -354,8 +354,8 @@ async def test_api_v1_put_game(api_fixture, caplog) -> None:
     assert resp.status == 204
 
     # Bad data -> 400.
-    world_time = "this is not a float"
-    data = f"{world_time}"
+    bad_world_time = "this is not a float"
+    data = f"{bad_world_time}"
     req, resp = reusable_client.put("/api/v1/game/first_game", data=data)
     assert resp.status == 400
 
@@ -855,8 +855,8 @@ async def test_api_v1_game_message(api_fixture, caplog) -> None:
         kill_time=utcnow(),
         killer_name="SomeGuy69_420",
         victim_name="Poor Non-existent Guy",
-        killer_team=int(Team.South),
-        victim_team=int(Team.North),
+        killer_team=Team.South,
+        victim_team=Team.North,
         damage_type="RODmgType_RPGOrSomethingWhoCares",
         kill_distance_m=6969.420,
     )
@@ -866,10 +866,19 @@ async def test_api_v1_game_message(api_fixture, caplog) -> None:
         kill_time=utcnow(),
         killer_name="dfgmklfdgmkldfg",
         victim_name="+o0234uio2j3jof",
-        killer_team=int(Team.North),
-        victim_team=int(Team.North),
+        killer_team=Team.North,
+        victim_team=Team.North,
         damage_type="RODmgType_XXX",
         kill_distance_m=0.1111111111111111111111111111111,
+    )
+    await queries.insert_game_chat_message(
+        conn=db_conn,
+        game_id="first_game",
+        send_time=utcnow(),
+        sender_name="SomeGuy69_420",
+        sender_team=Team.South,
+        message="yo wtf these guys are cheating?!",
+        channel=SayType.ALL,
     )
 
     todo_prompt = "pkodfgkopdfgkop0239485"  # TODO: PUT AN ACTUAL PROMPT HERE!

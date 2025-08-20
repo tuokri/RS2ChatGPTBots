@@ -160,6 +160,9 @@ def make_api_v1_app(name: str = "ChatGPTProxy") -> App:
 openai_model = "gpt-5-nano"
 openai_timeout = 60.0  # TODO: this might be way too low?
 
+prompt_max_game_chat_msgs = 30
+prompt_max_game_kills = 30
+
 # Rough API design:
 # - /message: to "fire" actual message request -> returns a chat message to send in game.
 #    * all context data is taken into account
@@ -206,9 +209,6 @@ game_expiration = datetime.timedelta(hours=5)
 api_key_deletion_leeway = datetime.timedelta(minutes=5)
 db_maintenance_interval = 30.0
 steam_web_api_cache_refresh_interval = datetime.timedelta(minutes=30).total_seconds()
-
-prompt_max_chat_messages = 15
-prompt_max_kills = 15
 
 game_id_length = 24
 
@@ -382,13 +382,15 @@ async def post_game_message(
             conn=conn,
             game_id=game.id,
             kill_time_from=previous_query.time,
+            limit=prompt_max_game_kills,
         )
         pprint(candidate_kills)
         candidate_msgs = await queries.select_game_chat_messages(
             conn=conn,
             send_time_from=previous_query.time,
+            limit=prompt_max_game_chat_msgs,
         )
-        pprint(candidate_kills)
+        pprint(candidate_msgs)
 
         if candidate_kills:
             kills_table = markdown_table([
@@ -470,8 +472,8 @@ async def post_game_kill(
                 kill_time=kill_time,
                 killer_name=killer_name,
                 victim_name=victim_name,
-                killer_team=int(killer_team),
-                victim_team=int(victim_team),
+                killer_team=killer_team,
+                victim_team=victim_team,
                 damage_type=damage_type,
                 kill_distance_m=kill_distance_m,
             )
@@ -562,8 +564,8 @@ async def post_game_chat_message(
                     message=msg,
                     send_time=utcnow(),
                     sender_name=player_name,
-                    sender_team=int(player_team),
-                    channel=int(say_type),
+                    sender_team=player_team,
+                    channel=say_type,
                 )
     except Exception as e:
         logger.debug("failed to parse chat message data: {}: {}", type(e).__name__, e)

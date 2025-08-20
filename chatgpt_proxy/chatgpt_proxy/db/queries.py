@@ -27,6 +27,7 @@ import ipaddress
 
 from asyncpg import Connection
 from asyncpg import Record
+from pypika import Order
 from pypika import Query
 from pypika import Table
 
@@ -317,10 +318,13 @@ async def insert_game_chat_message(
         message: str,
         send_time: datetime.datetime,
         sender_name: str,
-        sender_team: int,
-        channel: int,
+        sender_team: models.Team,
+        channel: models.SayType,
         timeout: float | None = _default_conn_timeout,
 ) -> int:
+    _sender_team = int(sender_team)
+    _channel = int(channel)
+
     return await conn.fetchval(
         """
         INSERT INTO "game_chat_message"
@@ -332,8 +336,8 @@ async def insert_game_chat_message(
         game_id,
         send_time,
         sender_name,
-        sender_team,
-        channel,
+        _sender_team,
+        _channel,
         timeout=timeout,
     )
 
@@ -344,12 +348,15 @@ async def insert_game_kill(
         kill_time: datetime.datetime,
         killer_name: str,
         victim_name: str,
-        killer_team: int,
-        victim_team: int,
+        killer_team: models.Team,
+        victim_team: models.Team,
         damage_type: str,
         kill_distance_m: float,
         timeout: float | None = _default_conn_timeout,
 ) -> int:
+    _killer_team = int(killer_team)
+    _victim_team = int(victim_team)
+
     return await conn.fetchval(
         """
         INSERT INTO "game_kill"
@@ -362,8 +369,8 @@ async def insert_game_kill(
         kill_time,
         killer_name,
         victim_name,
-        killer_team,
-        victim_team,
+        _killer_team,
+        _victim_team,
         damage_type,
         kill_distance_m,
         timeout=timeout,
@@ -472,6 +479,7 @@ async def select_game_kills(
         conn: Connection,
         game_id: str | None = None,
         kill_time_from: datetime.datetime | None = None,
+        limit: int | None = None,
         timeout: float | None = _default_conn_timeout,
 ) -> list[models.GameKill]:
     game_kill = Table(name="game_kill")
@@ -480,6 +488,9 @@ async def select_game_kills(
         query = query.where(game_kill.game_id == game_id)
     if kill_time_from is not None:
         query = query.where(game_kill.kill_time >= kill_time_from)
+    if limit is not None:
+        query = query.limit(limit)
+    query = query.orderby("id", order=Order.asc)
 
     records = await conn.fetch(
         str(query),
@@ -496,6 +507,7 @@ async def select_game_chat_messages(
         conn: Connection,
         game_id: str | None = None,
         send_time_from: datetime.datetime | None = None,
+        limit: int | None = None,
         timeout: float | None = _default_conn_timeout,
 ) -> list[models.GameChatMessage]:
     game_chat_message = Table(name="game_chat_message")
@@ -504,6 +516,9 @@ async def select_game_chat_messages(
         query = query.where(game_chat_message.game_id == game_id)
     if send_time_from is not None:
         query = query.where(game_chat_message.send_time >= send_time_from)
+    if limit is not None:
+        query = query.limit(limit)
+    query = query.orderby("id", order=Order.asc)
 
     records = await conn.fetch(
         str(query),
