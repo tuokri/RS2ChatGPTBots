@@ -163,19 +163,11 @@ openai_timeout = 60.0  # TODO: this might be way too low?
 prompt_max_game_chat_msgs = 30
 prompt_max_game_kills = 30
 
-# Rough API design:
-# - /message: to "fire" actual message request -> returns a chat message to send in game.
-#    * all context data is taken into account
-# - /message_history: (context) post here to keep a short log of previous chat messages.
-# - /players: (context) post/delete here to keep the current player list up to date.
-# - /kills: (context) post here to keep a short log of previous kills.
-# - /base_prompt: (context) appended in front of all requests to the LLM.
-
 # TODO: example prompt (the first one per game session).
 # TODO: this should only be sent from the UScript side after a small
 #       delay to allow the game state to "stabilize".
-"""
-{base_prompt}
+base_prompt_initial = """
+You are a 
 
 This is the beginning of a new game. The game currently contains the following players.
 ```
@@ -194,8 +186,9 @@ Insert compact table of chat messages here.
 
 {first_instruction}
 """
+
 # TODO: subsequent prompts should only need to update the data. E.g.:
-"""
+base_prompt_consecutive = """
 Since the beginning of the game, the following additional events have happened:
 {a} e.g. list of players joined/left
 {b} e.g. list of kills
@@ -211,6 +204,52 @@ db_maintenance_interval = 30.0
 steam_web_api_cache_refresh_interval = datetime.timedelta(minutes=30).total_seconds()
 
 game_id_length = 24
+
+
+async def get_kills_markdown_table(
+        conn: asyncpg.Connection,
+        game_id: str,
+        from_time: datetime.datetime,
+) -> str:
+    candidate_kills = await queries.select_game_kills(
+        conn=conn,
+        game_id=game_id,
+        kill_time_from=from_time,
+        limit=prompt_max_game_kills,
+    )
+    pprint(candidate_kills)
+
+    kills_table = ""
+    if candidate_kills:
+        kills_table = markdown_table([
+            kill.as_markdown_dict()
+            for kill in candidate_kills
+        ]).get_markdown()
+        pprint(kills_table)
+
+    return kills_table
+
+
+async def get_chat_messages_markdown_table(
+        conn: asyncpg.Connection,
+        from_time: datetime.datetime,
+) -> str:
+    candidate_msgs = await queries.select_game_chat_messages(
+        conn=conn,
+        send_time_from=from_time,
+        limit=prompt_max_game_chat_msgs,
+    )
+    pprint(candidate_msgs)
+
+    msgs_table = ""
+    if candidate_msgs:
+        msgs_table = markdown_table([
+            msg.as_markdown_dict()
+            for msg in candidate_msgs
+        ]).get_markdown()
+        pprint(msgs_table)
+
+    return msgs_table
 
 
 @api_v1.get("/game/<game_id:str>")
@@ -369,41 +408,24 @@ async def post_game_message(
             say_type = SayType(data_in[0])
             say_team = Team(data_in[1])
             say_name = data_in[2]
-            prompt = data_in[3]
+            prompt_in = data_in[3]
         except Exception as e:
             logger.info("error parsing game message data: {}: {}", type(e).__name__, e)
             # TODO: debug log stack trace or something?
             return HTTPResponse(status=HTTPStatus.BAD_REQUEST)
 
-        # TODO: pick which kills and chat messages we should inject
-        #       into the prompt based on the timestamp.
+        # TODO: have some maximum upper limit for total prompt length.
+        prompt = ""  # TODO
 
-        candidate_kills = await queries.select_game_kills(
+        kills_table = await get_kills_markdown_table(
             conn=conn,
             game_id=game.id,
-            kill_time_from=previous_query.time,
-            limit=prompt_max_game_kills,
+            from_time=previous_query.time,
         )
-        pprint(candidate_kills)
-        candidate_msgs = await queries.select_game_chat_messages(
+        msgs_table = await get_chat_messages_markdown_table(
             conn=conn,
-            send_time_from=previous_query.time,
-            limit=prompt_max_game_chat_msgs,
+            from_time=previous_query.time,
         )
-        pprint(candidate_msgs)
-
-        if candidate_kills:
-            kills_table = markdown_table([
-                kill.as_markdown_dict()
-                for kill in candidate_kills
-            ]).get_markdown()
-            pprint(kills_table)
-        if candidate_msgs:
-            msgs_table = markdown_table([
-                msg.as_markdown_dict()
-                for msg in candidate_msgs
-            ])
-            pprint(msgs_table)
 
         # TODO: format prompt here, taking maximum length into account!
         #   E.g.: (rough drafts):
