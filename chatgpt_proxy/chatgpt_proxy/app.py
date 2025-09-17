@@ -167,24 +167,21 @@ prompt_max_game_kills = 30
 # TODO: this should only be sent from the UScript side after a small
 #       delay to allow the game state to "stabilize".
 base_prompt_initial = """
-You are a 
+You are a TODO.
 
-This is the beginning of a new game. The game currently contains the following players.
-```
-Insert compact table of players (scoreboard).
-```
+This is the beginning of a new game. The game currently contains
+the following players:
+{markdown_scoreboard_table}
 
-The last {X} kills scored during the game are the following (in chronological order):
-```
-Insert compact table of kills here.
-```
+The last {num_kills} kills scored during the game are the
+following (in ascending chronological order):
+{markdown_kills_table}}
 
-The last {X} chat messages sent during the game are the following (in chronological order):
-```
-Insert compact table of chat messages here.
-```
+The last {num_chat_msgs} chat messages sent during the game are the
+following (ascending in chronological order):
+{markdown_chat_msgs_table}}
 
-{first_instruction}
+{initial_instruction}
 """
 
 # TODO: subsequent prompts should only need to update the data. E.g.:
@@ -204,6 +201,20 @@ db_maintenance_interval = 30.0
 steam_web_api_cache_refresh_interval = datetime.timedelta(minutes=30).total_seconds()
 
 game_id_length = 24
+
+
+def format_base_prompt_initial(
+        markdown_scoreboard_table: str,
+        markdown_kills_table: str,
+        markdown_chat_msgs_table: str,
+        initial_instruction: str,
+) -> str:
+    return base_prompt_initial.format(
+        markdown_scoreboard_table=markdown_scoreboard_table,
+        markdown_kills_table=markdown_kills_table,
+        markdown_chat_msgs_table=markdown_chat_msgs_table,
+        initial_instruction=initial_instruction,
+    )
 
 
 async def get_kills_markdown_table(
