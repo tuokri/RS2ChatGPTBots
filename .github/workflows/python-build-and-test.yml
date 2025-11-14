@@ -118,10 +118,10 @@ jobs:
 
       - name: Run pytest
         working-directory: ./chatgpt_proxy
-        run: |
+        run: >
           uv run pytest -s --cov=chatgpt_proxy
-            --cov-report html:cov_html
-            --cov-report xml:coverage.xml
+          --cov-report html:cov_html
+          --cov-report xml:coverage.xml
 
       - name: Store test reports
         uses: actions/upload-artifact@v5
