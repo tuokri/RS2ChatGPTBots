@@ -41,6 +41,7 @@ from sanic.log import access_logger as sanic_access_logger
 from sanic.log import logger as sanic_logger
 from sanic_testing.reusable import ReusableClient
 
+from chatgpt_proxy.app import openai_model
 from chatgpt_proxy.tests import setup  # noqa: E402
 
 setup.common_test_setup()
@@ -151,7 +152,7 @@ def patch_openai_response_output_text(
 ):
     response = openai_responses.Response(
         id="testing_0",
-        model="gpt-5-nano",
+        model=openai_model,
         created_at=utcnow().timestamp(),
         object="response",
         error=None,
