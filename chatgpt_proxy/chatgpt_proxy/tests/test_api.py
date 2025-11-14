@@ -151,7 +151,7 @@ def patch_openai_response_output_text(
 ):
     response = openai_responses.Response(
         id="testing_0",
-        model="gpt-4.1",
+        model="gpt-5-nano",
         created_at=utcnow().timestamp(),
         object="response",
         error=None,
