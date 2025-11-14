@@ -1,5 +1,7 @@
 # ChatGPT Bots for Rising Storm 2: Vietnam
 
+![Coverage Status](https://tuokri.github.io/RS2ChatGPTBots/coverage-badge.svg?dummy=123123)
+
 Provides a way for Rising Storm 2: Vietnam players to communicate
 via text with in-game "bots" that are powered by OpenAI's LLMs.
 
