@@ -1,0 +1,24 @@
+name: Build and deploy GitHub pages
+
+on: [ workflow_call ]
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-deploy:
+    concurrency: ci-${{ github.ref }}
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download badges
+        uses: actions/download-artifact@v6
+        with:
+          name: badges-ubuntu_latest-python-3.13
+          path: build
+
+      - name: Deploy 🚀
+        uses: JamesIves/github-pages-deploy-action@v4
+        with:
+          folder: build

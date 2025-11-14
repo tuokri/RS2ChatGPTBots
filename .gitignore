@@ -463,3 +463,6 @@ FodyWeavers.xsd
 
 # Exclude from *.log
 !chatgpt_proxy/chatgpt_proxy/log
+
+# Exclude generated SVG files
+*.svg

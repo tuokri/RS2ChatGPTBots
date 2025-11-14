@@ -16,7 +16,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        container: [ "ubuntu:latest", ]
+        container: [ "ubuntu:latest" ]
         python-version: [ "3.13" ]
 
     env:
@@ -51,7 +51,7 @@ jobs:
             jq \
             sqlite3
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Mark workspace as safe for git
         run: |
@@ -69,7 +69,7 @@ jobs:
           cache-dependency-glob: ./chatgpt_proxy/uv.lock
 
       - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: ${{ matrix.python-version }}
 
@@ -116,17 +116,35 @@ jobs:
       - name: Run pytest
         working-directory: ./chatgpt_proxy
         run: |
-          uv run pytest -s --cov=chatgpt_proxy --cov-report html:cov_html
+          uv run pytest -s --cov=chatgpt_proxy
+            --cov-report html:cov_html
+            --cov-report xml:coverage.xml
 
       - name: Store test reports
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         if: always()
         with:
           name: pytest-coverage-html-${{ env.MATRIX_CONTAINER }}-python-${{ matrix.python-version }}
-          path: chatgpt_proxy/cov_html
+          path: |
+            chatgpt_proxy/cov_html
+            chatgpt_proxy/coverage.xml
+
+      - name: Generate coverage badge
+        working-directory: ./chatgpt_proxy
+        # TODO: genbadge should be part of UV dependencies, really.
+        run: |
+          pip install genbadge[tests,coverage]
+          uv run genbadge --output=coverage-badge.svg --input-file coverage.xml
+
+      - name: Store generated badges
+        uses: actions/upload-artifact@v5
+        with:
+          name: badges-${{ env.MATRIX_CONTAINER }}-python-${{ matrix.python-version }}
+          path: |
+            chatgpt_proxy/coverage-badge.svg
 
       - name: Store built Python packages
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         if: always()
         with:
           name: chatgpt_proxy-dist-${{ env.MATRIX_CONTAINER }}-python-${{ matrix.python-version }}
@@ -135,3 +153,7 @@ jobs:
       - name: Minimize uv cache
         working-directory: ./chatgpt_proxy
         run: uv cache prune --ci
+
+  publish-gh-pages:
+    needs: [ build ]
+    uses: ./.github/workflows/publish-gh-pages.yml
