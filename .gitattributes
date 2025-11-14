@@ -5,3 +5,5 @@
 
 *.sql linguist-detectable=true
 *.html linguist-detectable=true
+
+.github/pages/** linguist-detectable=true
