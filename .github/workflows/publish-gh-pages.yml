@@ -6,7 +6,7 @@ permissions:
   contents: write
 
 jobs:
-  build-and-deploy:
+  publish-gh-pages:
     concurrency: ci-${{ github.ref }}
 
     runs-on: ubuntu-latest
