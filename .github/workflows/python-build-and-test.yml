@@ -134,9 +134,7 @@ jobs:
 
       - name: Generate coverage badge
         working-directory: ./chatgpt_proxy
-        # TODO: genbadge should be part of UV dependencies, really.
         run: |
-          pip install genbadge[tests,coverage]
           uv run genbadge --output=coverage-badge.svg --input-file coverage.xml
 
       - name: Store generated badges
