@@ -41,7 +41,6 @@ from sanic.log import access_logger as sanic_access_logger
 from sanic.log import logger as sanic_logger
 from sanic_testing.reusable import ReusableClient
 
-from chatgpt_proxy.app import openai_model
 from chatgpt_proxy.tests import setup  # noqa: E402
 
 setup.common_test_setup()
@@ -53,6 +52,7 @@ from chatgpt_proxy.app import app  # noqa: E402
 from chatgpt_proxy.app import game_id_length  # noqa: E402
 from chatgpt_proxy.app import make_api_v1_app  # noqa: E402
 from chatgpt_proxy.app import max_ast_literal_eval_size  # noqa: E402
+from chatgpt_proxy.app import openai_model  # noqa: E402
 from chatgpt_proxy.cache import app_cache  # noqa: E402
 from chatgpt_proxy.db import models  # noqa: E402
 from chatgpt_proxy.db import pool_acquire  # noqa: E402
