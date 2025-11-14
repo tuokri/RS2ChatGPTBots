@@ -2,6 +2,9 @@ name: Python package builds and tests
 
 # TODO: set up a separate workflow for Windows!
 
+permissions:
+  contents: write
+
 on:
   push:
     branches: [ "master" ]
