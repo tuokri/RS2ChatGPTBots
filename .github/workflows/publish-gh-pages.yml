@@ -21,6 +21,9 @@ jobs:
           name: badges-ubuntu_latest-python-3.13
           path: build
 
+      - name: Copy index.html
+        run: cp ./.github/pages/index.html build/index.html
+
       - name: Deploy 🚀
         uses: JamesIves/github-pages-deploy-action@v4
         with:
