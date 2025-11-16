@@ -24,7 +24,16 @@ jobs:
       - name: Copy index.html
         run: cp ./.github/pages/index.html build/index.html
 
+      - name: Copy reports
+        run: |
+          cp ./chatgpt_proxy/cov_html/* build/reports/coverage
+          cp ./chatgpt_proxy/coverage.xml build/reports/coverage
+
       - name: Deploy
         uses: JamesIves/github-pages-deploy-action@v4
         with:
           folder: build
+
+  purge-readme-images:
+    needs: [ publish-gh-pages ]
+    uses: ./.github/workflows/purge-readme-images.yml
