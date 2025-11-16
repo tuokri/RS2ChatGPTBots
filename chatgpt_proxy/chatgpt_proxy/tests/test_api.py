@@ -295,7 +295,9 @@ async def api_fixture(
                 ))
 
             # NOTE: can't reuse the same app for ReusableClient!
-            reusable_app = make_api_v1_app("ChatGPTProxy-Reusable")
+            reusable_app = make_api_v1_app(
+                "ChatGPTProxy-Reusable",
+            )
             reusable_client = ReusableClient(
                 reusable_app,
                 host=_asgi_host,

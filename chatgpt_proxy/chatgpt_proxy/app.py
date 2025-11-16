@@ -32,6 +32,7 @@ import secrets
 from http import HTTPStatus
 from multiprocessing.synchronize import Event as EventType
 from pprint import pprint
+from typing import Any
 
 import asyncpg
 import httpx
@@ -86,11 +87,12 @@ def refresh_steam_web_api_cache_process(stop_event: EventType) -> None:
 max_ast_literal_eval_size = 1000
 
 
-def make_api_v1_app(name: str = "ChatGPTProxy") -> App:
+def make_api_v1_app(name: str = "ChatGPTProxy", **kwargs: Any) -> App:
     _app: App = sanic.Sanic(
         name,
         ctx=Context(),
         request_class=Request,  # type: ignore[arg-type]
+        **kwargs,
     )
     # We don't expect UScript side to send large requests.
     _app.config.REQUEST_MAX_SIZE = 1500
