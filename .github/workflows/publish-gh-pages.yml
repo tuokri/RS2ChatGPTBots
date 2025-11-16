@@ -15,10 +15,12 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v5
 
-      - name: Download badges
+      - name: Download artifacts
         uses: actions/download-artifact@v6
         with:
-          name: badges-ubuntu_latest-python-3.13
+          name: |
+            badges-ubuntu_latest-python-3.13
+            pytest-coverage-html-ubuntu_latest-python-3.13
           path: build
 
       - name: Copy index.html
