@@ -134,8 +134,11 @@ jobs:
 
       - name: Generate coverage badge
         working-directory: ./chatgpt_proxy
-        run: |
-          uv run genbadge coverage --output-file=coverage-badge.svg --input-file=coverage.xml
+        run: >
+          uv run genbadge coverage 
+          --output-file=coverage-badge.svg 
+          --input-file=coverage.xml
+          --name='chatgpt__proxy coverage' 
 
       - name: Store generated badges
         uses: actions/upload-artifact@v5
