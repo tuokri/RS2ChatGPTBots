@@ -1,6 +1,6 @@
 # ChatGPT Bots for Rising Storm 2: Vietnam
 
-![Coverage Status](https://tuokri.github.io/RS2ChatGPTBots/coverage-badge.svg?dummy=123123)
+[![Coverage Status](https://tuokri.github.io/RS2ChatGPTBots/coverage-badge.svg)](https://tuokri.github.io/RS2ChatGPTBots/cov_html/index.html)
 
 ---
 
