@@ -41,13 +41,12 @@ import sanic
 from chatgpt_proxy.db import pool_acquire
 from chatgpt_proxy.db import queries
 from chatgpt_proxy.log import logger
+from chatgpt_proxy.steam import steam
 from chatgpt_proxy.types import Request
 from chatgpt_proxy.utils import get_remote_addr
 
 jwt_issuer = "ChatGPTProxy"
 jwt_audience = "ChatGPTProxy"
-
-_server_list_url = "https://api.steampowered.com/IGameServersService/GetServerList/v1/"
 
 _steam_web_api_key: str | None = None
 
@@ -78,13 +77,14 @@ async def is_real_game_server(
         game_server_port: int,
 ) -> bool:
     try:
-        resp = await client.get(
-            _server_list_url,
+        resp = await steam.web_api_request(
+            client,
+            url=steam.server_list_url,
             params={
                 "key": _steam_web_api_key,
                 "filter": f"\\gamedir\\rs2\\gameaddr\\{game_server_address}:{game_server_port}",
                 # TODO: limit param would speed up things, or would it?
-            },
+            }
         )
         resp.raise_for_status()
         servers = resp.json()["response"]["servers"]
