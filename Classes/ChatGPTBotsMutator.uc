@@ -98,7 +98,7 @@ var() string InitialGreetingName;
 
 // Last known team of a player ID.
 // TODO: consider if we need this? We could just send a PUT update on every
-//   player spawn, even if their team as not changed. It could however create
+//   player spawn, even if their team has not changed. It could however create
 //   a lot of unnecessary traffic.
 var array<KeyValuePair_IntInt> PlayerIdToTeam;
 
@@ -576,8 +576,17 @@ function OverrideBroadcastHandler()
 function ReceiveMessage(PlayerReplicationInfo Sender, string Msg, name Type)
 {
     local int i;
+    local Controller Controller;
 
-    // Receiving GameId from the proxy server will be delayed.
+    `cgbdebug("Sender=" $ Sender $ ", Msg=" $ Msg $ ", Type=" $ Type);
+
+    // Since we can't reliably hook into team change events, keep
+    // player id to team mapping up to date on each chat message.
+    Controller = Controller(Sender.Owner);
+    UpdatePlayerIdToTeamMapping(Controller);
+
+    // Receiving GameId from the proxy server will be delayed,
+    // buffer messages until then.
     if (GameId == "")
     {
         i = GameChatMessageQueue.Length;
@@ -1122,17 +1131,15 @@ function ScoreKill(Controller Killer, Controller Victim)
     super.ScoreKill(Killer, Victim);
 }
 
-function NavigationPoint FindPlayerStart(
-    Controller Player,
-    optional byte InTeam,
-    optional string IncomingName)
+function UpdatePlayerIdToTeamMapping(Controller Player)
 {
     local int Idx;
     local KeyValuePair_IntInt KV;
 
-    if (GameId != "")
+    if (Player != None && GameId != "")
     {
         // If a player ID's team has changed, we have to send a PUT update.
+
         Idx = PlayerIdToTeam.Find('Key', Player.PlayerReplicationInfo.PlayerID);
         if (Idx == INDEX_NONE)
         {
@@ -1160,7 +1167,14 @@ function NavigationPoint FindPlayerStart(
             }
         }
     }
+}
 
+function NavigationPoint FindPlayerStart(
+    Controller Player,
+    optional byte InTeam,
+    optional string IncomingName)
+{
+    UpdatePlayerIdToTeamMapping(Player);
     return Super.FindPlayerStart(Player, InTeam, IncomingName);
 }
 
