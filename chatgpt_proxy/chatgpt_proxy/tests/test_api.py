@@ -428,8 +428,8 @@ async def test_api_v1_post_game_invalid_token(api_fixture, caplog) -> None:
                 },
             ))
         data = "VNTE-WhatTheFuckBro\n7777"
-        req, resp = reusable_client.post("/api/v1/game", data=data)
-        assert resp.status == 401
+        req_, resp_ = reusable_client.post("/api/v1/game", data=data)
+        assert resp_.status == 401, resp_.body
 
     logger.info("testing Steam API returning garbage")
     with steam_mock_router:

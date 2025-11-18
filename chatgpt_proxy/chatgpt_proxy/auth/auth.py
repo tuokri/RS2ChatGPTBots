@@ -32,7 +32,6 @@ from http import HTTPStatus
 from inspect import isawaitable
 from typing import Callable
 
-import aiocache
 import asyncpg
 import jwt
 import sanic
@@ -63,13 +62,17 @@ ttl_is_real_game_server = datetime.timedelta(minutes=60).total_seconds()
 # TODO: waiting for updated aiocache + valkey-glide support on Windows!
 #   - In the meanwhile, only use memory cache!
 #   - See pyproject.toml for more details!
-@aiocache.cached(
-    # cache=app_cache,
-    cache=aiocache.Cache.MEMORY,
-    ttl=ttl_is_real_game_server,
-    # NOTE: Only cache the result if the server was successfully verified.
-    skip_cache_func=lambda x: x is False,
-)
+# TODO: FIXME: IMPORTANT:
+#   ENABLING THIS BREAKS TESTING! CACHE SHOULD BE CLEARED IN CERTAIN TESTS!
+#   FOR THAT, WE NEED TO USE app_cache, BUT WE CANNOT DO THAT UNTIL
+#   aiocached IS PATCHED! SEE THE ABOVE NOTE!
+# @aiocache.cached(
+#     # cache=app_cache,
+#     cache=aiocache.Cache.MEMORY,
+#     ttl=ttl_is_real_game_server,
+#     # NOTE: Only cache the result if the server was successfully verified.
+#     skip_cache_func=lambda x: x is False,
+# )
 async def is_real_game_server(
         request: Request,
         game_server_address: ipaddress.IPv4Address,
