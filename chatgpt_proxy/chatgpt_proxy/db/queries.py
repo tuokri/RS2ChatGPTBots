@@ -529,3 +529,31 @@ async def select_game_chat_messages(
         models.GameChatMessage(**record)
         for record in records
     ]
+
+
+async def increment_steam_web_api_queries(
+        conn: Connection,
+        timeout: float | None = _default_conn_timeout,
+) -> None:
+    async with conn.transaction():
+        await conn.execute(
+            """
+            UPDATE "query_statistics"
+            SET steam_web_api_queries = steam_web_api_queries + 1;
+            """,
+            timeout=timeout,
+        )
+
+
+async def select_steam_web_api_queries(
+        conn: Connection,
+        timeout: float | None = _default_conn_timeout,
+) -> int:
+    record = await conn.fetchrow(
+        """
+        SELECT steam_web_api_queries
+        FROM "query_statistics";
+        """,
+        timeout=timeout,
+    )
+    return record["steam_web_api_queries"]

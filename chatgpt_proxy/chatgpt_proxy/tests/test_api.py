@@ -548,6 +548,11 @@ async def test_api_v1_post_game_chat_message(api_fixture, caplog) -> None:
         os.environ["STEAM_WEB_API_KEY"] = setup.steam_web_api_key
         chatgpt_proxy.auth.load_config()
 
+    num_steam_web_api_queries = await queries.select_steam_web_api_queries(
+        conn=db_conn,
+    )
+    assert num_steam_web_api_queries > 0
+
 
 # TODO: make a dedicated test suite for "end-to-end" tests with
 #   a 'real' production setup!

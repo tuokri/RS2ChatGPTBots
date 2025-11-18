@@ -102,6 +102,17 @@ CREATE TABLE IF NOT EXISTS "game_objective_state"
     FOREIGN KEY (game_id) REFERENCES game (id) ON DELETE CASCADE
 );
 
+CREATE TABLE IF NOT EXISTS "query_statistics"
+(
+    id                    BOOLEAN PRIMARY KEY UNIQUE DEFAULT TRUE,
+    steam_web_api_queries BIGINT NOT NULL            DEFAULT 0,
+
+    CHECK (id)
+);
+INSERT INTO query_statistics DEFAULT
+VALUES
+ON CONFLICT DO NOTHING;
+
 -- Query history and statistics to OpenAI API.
 CREATE TABLE IF NOT EXISTS "openai_query"
 (

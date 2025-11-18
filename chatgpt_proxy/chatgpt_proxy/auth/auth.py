@@ -34,7 +34,6 @@ from typing import Callable
 
 import aiocache
 import asyncpg
-import httpx
 import jwt
 import sanic
 
@@ -72,13 +71,13 @@ ttl_is_real_game_server = datetime.timedelta(minutes=60).total_seconds()
     skip_cache_func=lambda x: x is False,
 )
 async def is_real_game_server(
-        client: httpx.AsyncClient,
+        request: Request,
         game_server_address: ipaddress.IPv4Address,
         game_server_port: int,
 ) -> bool:
     try:
         resp = await steam.web_api_request(
-            client,
+            request,
             url=steam.server_list_url,
             params={
                 "key": _steam_web_api_key,
@@ -159,7 +158,7 @@ async def check_token(request: Request, pg_pool: asyncpg.Pool) -> bool:
                        "unable to verify server is a real RS2 server")
     else:
         ok = await is_real_game_server(
-            request.app.ctx.http_client,  # type: ignore[arg-type]
+            request,
             addr,
             port,
         )
