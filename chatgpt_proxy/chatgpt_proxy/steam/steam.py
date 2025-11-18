@@ -54,7 +54,7 @@ async def web_api_request(
     _background_tasks.add(update_counter_task)
     update_counter_task.add_done_callback(_background_tasks.discard)
 
-    http_client = request.app.ctx.http_client
+    http_client = request.app.ctx.http_client  # type: ignore[union-attr]
     resp = await http_client.get(
         url,
         params=params,
