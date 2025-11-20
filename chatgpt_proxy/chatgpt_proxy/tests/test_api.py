@@ -555,7 +555,7 @@ async def test_api_v1_post_game_chat_message(api_fixture, caplog) -> None:
 
 
 # TODO: make a dedicated test suite for "end-to-end" tests with
-#   a 'real' production setup!
+#   a 'real' production setup?
 # @pytest.mark.asyncio
 # async def test_database_maintenance(api_fixture, caplog) -> None:
 #     pass
