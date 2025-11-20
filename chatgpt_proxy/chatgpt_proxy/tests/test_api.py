@@ -73,7 +73,7 @@ monkey_patch_sanic_testing(
     asgi_host=_asgi_host,
 )
 
-_db_timeout = 30.0
+_db_timeout = setup.default_test_db_timeout
 
 _game_server_address = ipaddress.IPv4Address("127.0.0.1")
 _game_server_port = 7777

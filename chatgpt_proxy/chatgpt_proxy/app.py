@@ -657,8 +657,6 @@ async def put_game_objective_state(
 
 
 async def db_maintenance(stop_event: EventType) -> None:
-    # TODO: try to reduce the levels of nestedness.
-
     pool: asyncpg.Pool | None = None
 
     try:

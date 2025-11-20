@@ -51,12 +51,12 @@ assert _root_path.exists()
 assert _pkg_path_db.exists()
 assert _pkg_path_tests.exists()
 
-_default_db_timeout = 30.0
+default_test_db_timeout = 30.0
 
 
 async def initialize_test_db(
         conn: asyncpg.Connection,
-        timeout: float | None = _default_db_timeout
+        timeout: float | None = default_test_db_timeout
 ):
     init_db_sql = (_pkg_path_db / "db.sql").read_text()
     await conn.execute(init_db_sql, timeout=timeout)
@@ -64,7 +64,7 @@ async def initialize_test_db(
 
 async def seed_test_db(
         conn: asyncpg.Connection,
-        timeout: float | None = _default_db_timeout
+        timeout: float | None = default_test_db_timeout
 ):
     seed_db_sql = (_pkg_path_tests / "seed.sql").read_text()
     await conn.execute(seed_db_sql, timeout=timeout)
@@ -72,7 +72,7 @@ async def seed_test_db(
 
 async def drop_test_db(
         conn: asyncpg.Connection,
-        timeout: float | None = _default_db_timeout
+        timeout: float | None = default_test_db_timeout
 ):
     await conn.execute(
         f"DROP DATABASE IF EXISTS {test_db} WITH (FORCE)",
@@ -82,7 +82,7 @@ async def drop_test_db(
 
 async def create_test_db(
         conn: asyncpg.Connection,
-        timeout: float | None = _default_db_timeout
+        timeout: float | None = default_test_db_timeout
 ):
     await conn.execute(
         f"CREATE DATABASE {test_db};",
