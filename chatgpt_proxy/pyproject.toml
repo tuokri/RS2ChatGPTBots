@@ -13,7 +13,7 @@ license-files = ["LICENSE"]
 # https://github.com/aio-libs/aiocache/issues/1018
 
 dependencies = [
-    "aiocache[redis]>=0.12.3",
+    "aiocache[redis,msgpack]>=0.12.3",
     "asyncpg>=0.30.0",
     "click>=8.2.1",
     "httpx>=0.28.1",

@@ -25,6 +25,7 @@ from enum import StrEnum
 
 import aiocache
 import redis.asyncio as redis
+from aiocache.serializers import MsgPackSerializer
 
 from chatgpt_proxy.log import logger
 from chatgpt_proxy.utils import is_prod_env
@@ -43,6 +44,7 @@ _cache_method = os.getenv("CHATGPT_PROXY_CACHE_METHOD", _default_cache).lower().
 def setup_memory_cache(namespace: CacheNamespace) -> aiocache.SimpleMemoryCache:
     return aiocache.SimpleMemoryCache(
         namespace=namespace,
+        serializer=MsgPackSerializer(),
     )
 
 
@@ -52,6 +54,7 @@ def setup_redis_cache(namespace: CacheNamespace) -> aiocache.RedisCache:
     return aiocache.RedisCache(
         redis_client,
         namespace=namespace,
+        serializer=MsgPackSerializer(),
     )
 
 
