@@ -98,9 +98,18 @@ async def delayed_stop_task(delay: float, stop_event: threading.Event):
 
 
 def schedule_delayed_stop(delay: float, stop_event: threading.Event):
+    if stop_event.is_set():
+        logger.info("stop_event already set, not scheduling stop task")
+        return
+
     task = asyncio.create_task(delayed_stop_task(delay, stop_event))
     _background_tasks.add(task)
     task.add_done_callback(_background_tasks.discard)
+
+
+# TODO: to speed up completion of these tests, actively poll for the
+#       desired result (or timeout), and set the stop_event when desired
+#       result is reached.
 
 
 @pytest.mark.timeout(10)
@@ -125,8 +134,9 @@ async def test_refresh_steam_web_api_cache(maintenance_fixture, caplog) -> None:
     caplog.set_level(logging.DEBUG)
     _ = maintenance_fixture
 
-    # TODO: fill database with completed games and
-    #       old API keys.
+    # TODO: fill database with API keys and ???.
+
+    chatgpt_proxy.app.steam_web_api_cache_refresh_interval = 0.5
 
     stop_event = threading.Event()
     schedule_delayed_stop(1.0, stop_event)
