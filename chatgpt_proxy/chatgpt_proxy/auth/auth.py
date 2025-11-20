@@ -33,6 +33,7 @@ from inspect import isawaitable
 from typing import Callable
 
 import asyncpg
+import httpx
 import jwt
 import sanic
 
@@ -74,13 +75,16 @@ ttl_is_real_game_server = datetime.timedelta(minutes=60).total_seconds()
 #     skip_cache_func=lambda x: x is False,
 # )
 async def is_real_game_server(
-        request: Request,
+        *,
         game_server_address: ipaddress.IPv4Address,
         game_server_port: int,
+        pg_pool: asyncpg.Pool,
+        http_client: httpx.AsyncClient,
 ) -> bool:
     try:
         resp = await steam.web_api_request(
-            request,
+            http_client=http_client,
+            pg_pool=pg_pool,
             url=steam.server_list_url,
             params={
                 "key": _steam_web_api_key,
@@ -161,9 +165,10 @@ async def check_token(request: Request, pg_pool: asyncpg.Pool) -> bool:
                        "unable to verify server is a real RS2 server")
     else:
         ok = await is_real_game_server(
-            request,
-            addr,
-            port,
+            game_server_address=addr,
+            game_server_port=port,
+            pg_pool=pg_pool,
+            http_client=request.app.ctx.http_client,
         )
         if not ok:
             logger.debug("JWT validation failed: server is not a real RS2 server "

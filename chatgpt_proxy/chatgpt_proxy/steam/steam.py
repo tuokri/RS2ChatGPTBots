@@ -22,14 +22,13 @@
 
 import asyncio
 
+import asyncpg
 import httpx
-from asyncpg import Pool
 # noinspection PyProtectedMember
 from httpx._types import QueryParamTypes
 
 from chatgpt_proxy.db import pool_acquire
 from chatgpt_proxy.db.queries import increment_steam_web_api_queries
-from chatgpt_proxy.types import Request
 
 server_list_url = "https://api.steampowered.com/IGameServersService/GetServerList/v1/"
 
@@ -37,24 +36,24 @@ _background_tasks = set()
 
 
 async def _update_steam_web_api_queries_counter(
-        pg_pool: Pool,
+        pg_pool: asyncpg.Pool,
 ) -> None:
     async with pool_acquire(pg_pool) as conn:
         await increment_steam_web_api_queries(conn)
 
 
 async def web_api_request(
-        request: Request,
+        http_client: httpx.AsyncClient,
+        pg_pool: asyncpg.Pool,
         url: str,
         params: QueryParamTypes | None = None,
 ) -> httpx.Response:
     update_counter_task = asyncio.create_task(
-        _update_steam_web_api_queries_counter(request.app.ctx.pg_pool)
+        _update_steam_web_api_queries_counter(pg_pool)
     )
     _background_tasks.add(update_counter_task)
     update_counter_task.add_done_callback(_background_tasks.discard)
 
-    http_client = request.app.ctx.http_client  # type: ignore[union-attr]
     resp = await http_client.get(
         url,
         params=params,

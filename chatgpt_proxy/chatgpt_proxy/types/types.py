@@ -35,9 +35,39 @@ from chatgpt_proxy.db import models
 
 
 class Context(SimpleNamespace):
-    client: openai.AsyncOpenAI | None
-    pg_pool: asyncpg.Pool | None
-    http_client: httpx.AsyncClient | None
+    _client: openai.AsyncOpenAI | None
+    _pg_pool: asyncpg.Pool | None
+    _http_client: httpx.AsyncClient | None
+
+    @property
+    def client(self) -> openai.AsyncOpenAI:
+        if self._client is None:
+            raise RuntimeError("Context client is None")
+        return self._client
+
+    @client.setter
+    def client(self, value: openai.AsyncOpenAI):
+        self._client = value
+
+    @property
+    def pg_pool(self) -> asyncpg.Pool:
+        if self._pg_pool is None:
+            raise RuntimeError("Context pg_pool is None")
+        return self._pg_pool
+
+    @pg_pool.setter
+    def pg_pool(self, value: asyncpg.Pool):
+        self._pg_pool = value
+
+    @property
+    def http_client(self) -> httpx.AsyncClient:
+        if self._http_client is None:
+            raise RuntimeError("Context http_client is None")
+        return self._http_client
+
+    @http_client.setter
+    def http_client(self, value: httpx.AsyncClient):
+        self._http_client = value
 
 
 class RequestContext(SimpleNamespace):

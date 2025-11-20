@@ -141,14 +141,15 @@ def make_api_v1_app(name: str = "ChatGPTProxy", **kwargs: Any) -> App:
         app_.ctx.http_client = httpx.AsyncClient()
         app_.ext.dependency(app_.ctx.http_client)
 
+    # noinspection PyProtectedMember
     @_app.before_server_stop
     async def before_server_stop(app_: App, _):
-        if app_.ctx.client:
-            await app_.ctx.client.close()
-        if app_.ctx.pg_pool:
-            await app_.ctx.pg_pool.close()
-        if app_.ctx.http_client:
-            await app_.ctx.http_client.aclose()
+        if app_.ctx._client:
+            await app_.ctx._client.close()
+        if app_.ctx._pg_pool:
+            await app_.ctx._pg_pool.close()
+        if app_.ctx._http_client:
+            await app_.ctx._http_client.aclose()
 
         await app_cache.close()
         await db_cache.close()
@@ -696,9 +697,10 @@ async def refresh_steam_web_api_cache(stop_event: EventType) -> None:
             async with httpx.AsyncClient(timeout=30.0) as client:
                 tasks = [
                     is_real_game_server(
-                        client=client,
                         game_server_address=api_key["game_server_address"],
                         game_server_port=api_key["game_server_port"],
+                        pg_pool=pool,
+                        http_client=client,
                     )
                     for api_key in api_keys
                 ]
