@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
-    <title>Coverage for chatgpt_proxy/app.py: 90%</title>
+    <title>Coverage for chatgpt_proxy/app.py: 93%</title>
     <link rel="icon" sizes="32x32" href="favicon_32_cb_58284776.png">
     <link rel="stylesheet" href="style_cb_8432e98f.css" type="text/css">
     <script src="coverage_html_cb_bcae5fc4.js" defer></script>
@@ -12,7 +12,7 @@
     <div class="content">
         <h1>
             <span class="text">Coverage for </span><b>chatgpt_proxy&#8201;/&#8201;app.py</b>:
-            <span class="pc_cov">90%</span>
+            <span class="pc_cov">93%</span>
         </h1>
         <aside id="help_panel_wrapper">
             <input id="help_panel_state" type="checkbox">
@@ -55,8 +55,8 @@
         </aside>
         <h2>
             <span class="text">323 statements &nbsp;</span>
-            <button type="button" class="run button_toggle_run" value="run" data-shortcut="r" title="Toggle lines run">291<span class="text"> run</span></button>
-            <button type="button" class="mis show_mis button_toggle_mis" value="mis" data-shortcut="m" title="Toggle lines missing">32<span class="text"> missing</span></button>
+            <button type="button" class="run button_toggle_run" value="run" data-shortcut="r" title="Toggle lines run">302<span class="text"> run</span></button>
+            <button type="button" class="mis show_mis button_toggle_mis" value="mis" data-shortcut="m" title="Toggle lines missing">21<span class="text"> missing</span></button>
             <button type="button" class="exc show_exc button_toggle_exc" value="exc" data-shortcut="x" title="Toggle lines excluded">0<span class="text"> excluded</span></button>
         </h2>
         <p class="text">
@@ -65,7 +65,7 @@
             <a id="nextFileLink" class="nav" href="z_706e4cdfdb2edf69___init___py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.12.0">coverage.py v7.12.0</a>,
-            created at 2025-11-22 21:47 +0000
+            created at 2025-11-22 22:50 +0000
         </p>
         <aside class="hidden">
             <button type="button" class="button_next_chunk" data-shortcut="j"></button>
@@ -764,27 +764,27 @@
     <p class="pln"><span class="n"><a id="t682" href="#t682">682</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t683" href="#t683">683</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t684" href="#t684">684</a></span><span class="t"><span class="key">async</span> <span class="key">def</span> <span class="nam">refresh_steam_web_api_cache</span><span class="op">(</span><span class="nam">stop_event</span><span class="op">:</span> <span class="nam">EventType</span><span class="op">)</span> <span class="op">-></span> <span class="key">None</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis show_mis"><span class="n"><a id="t685" href="#t685">685</a></span><span class="t">    <span class="nam">pool</span><span class="op">:</span> <span class="nam">asyncpg</span><span class="op">.</span><span class="nam">Pool</span> <span class="op">|</span> <span class="key">None</span> <span class="op">=</span> <span class="key">None</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t685" href="#t685">685</a></span><span class="t">    <span class="nam">pool</span><span class="op">:</span> <span class="nam">asyncpg</span><span class="op">.</span><span class="nam">Pool</span> <span class="op">|</span> <span class="key">None</span> <span class="op">=</span> <span class="key">None</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t686" href="#t686">686</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
-    <p class="mis show_mis"><span class="n"><a id="t687" href="#t687">687</a></span><span class="t">    <span class="key">try</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis show_mis"><span class="n"><a id="t688" href="#t688">688</a></span><span class="t">        <span class="nam">db_url</span> <span class="op">=</span> <span class="nam">os</span><span class="op">.</span><span class="nam">environ</span><span class="op">.</span><span class="nam">get</span><span class="op">(</span><span class="str">"DATABASE_URL"</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis show_mis"><span class="n"><a id="t689" href="#t689">689</a></span><span class="t">        <span class="nam">pool</span> <span class="op">=</span> <span class="key">await</span> <span class="nam">asyncpg</span><span class="op">.</span><span class="nam">create_pool</span><span class="op">(</span><span class="nam">dsn</span><span class="op">=</span><span class="nam">db_url</span><span class="op">,</span> <span class="nam">min_size</span><span class="op">=</span><span class="num">1</span><span class="op">,</span> <span class="nam">max_size</span><span class="op">=</span><span class="num">1</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t687" href="#t687">687</a></span><span class="t">    <span class="key">try</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t688" href="#t688">688</a></span><span class="t">        <span class="nam">db_url</span> <span class="op">=</span> <span class="nam">os</span><span class="op">.</span><span class="nam">environ</span><span class="op">.</span><span class="nam">get</span><span class="op">(</span><span class="str">"DATABASE_URL"</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t689" href="#t689">689</a></span><span class="t">        <span class="nam">pool</span> <span class="op">=</span> <span class="key">await</span> <span class="nam">asyncpg</span><span class="op">.</span><span class="nam">create_pool</span><span class="op">(</span><span class="nam">dsn</span><span class="op">=</span><span class="nam">db_url</span><span class="op">,</span> <span class="nam">min_size</span><span class="op">=</span><span class="num">1</span><span class="op">,</span> <span class="nam">max_size</span><span class="op">=</span><span class="num">1</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t690" href="#t690">690</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
-    <p class="mis show_mis"><span class="n"><a id="t691" href="#t691">691</a></span><span class="t">        <span class="key">while</span> <span class="key">not</span> <span class="nam">stop_event</span><span class="op">.</span><span class="nam">wait</span><span class="op">(</span><span class="nam">steam_web_api_cache_refresh_interval</span><span class="op">)</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis show_mis"><span class="n"><a id="t692" href="#t692">692</a></span><span class="t">            <span class="key">async</span> <span class="key">with</span> <span class="nam">pool_acquire</span><span class="op">(</span><span class="nam">pool</span><span class="op">)</span> <span class="key">as</span> <span class="nam">conn</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis show_mis"><span class="n"><a id="t693" href="#t693">693</a></span><span class="t">                <span class="nam">api_keys</span> <span class="op">=</span> <span class="key">await</span> <span class="nam">queries</span><span class="op">.</span><span class="nam">select_game_server_api_keys</span><span class="op">(</span><span class="nam">conn</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis show_mis"><span class="n"><a id="t694" href="#t694">694</a></span><span class="t">                <span class="nam">logger</span><span class="op">.</span><span class="nam">info</span><span class="op">(</span><span class="str">"refreshing Steam Web API cache for {} keys"</span><span class="op">,</span> <span class="nam">len</span><span class="op">(</span><span class="nam">api_keys</span><span class="op">)</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis show_mis"><span class="n"><a id="t695" href="#t695">695</a></span><span class="t">            <span class="key">async</span> <span class="key">with</span> <span class="nam">httpx</span><span class="op">.</span><span class="nam">AsyncClient</span><span class="op">(</span><span class="nam">timeout</span><span class="op">=</span><span class="num">30.0</span><span class="op">)</span> <span class="key">as</span> <span class="nam">client</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis show_mis"><span class="n"><a id="t696" href="#t696">696</a></span><span class="t">                <span class="nam">tasks</span> <span class="op">=</span> <span class="op">[</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis mis2 show_mis"><span class="n"><a id="t697" href="#t697">697</a></span><span class="t">                    <span class="nam">is_real_game_server</span><span class="op">(</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis mis2 show_mis"><span class="n"><a id="t698" href="#t698">698</a></span><span class="t">                        <span class="nam">game_server_address</span><span class="op">=</span><span class="nam">api_key</span><span class="op">[</span><span class="str">"game_server_address"</span><span class="op">]</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis mis2 show_mis"><span class="n"><a id="t699" href="#t699">699</a></span><span class="t">                        <span class="nam">game_server_port</span><span class="op">=</span><span class="nam">api_key</span><span class="op">[</span><span class="str">"game_server_port"</span><span class="op">]</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis mis2 show_mis"><span class="n"><a id="t700" href="#t700">700</a></span><span class="t">                        <span class="nam">pg_pool</span><span class="op">=</span><span class="nam">pool</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis mis2 show_mis"><span class="n"><a id="t701" href="#t701">701</a></span><span class="t">                        <span class="nam">http_client</span><span class="op">=</span><span class="nam">client</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis mis2 show_mis"><span class="n"><a id="t702" href="#t702">702</a></span><span class="t">                    <span class="op">)</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis mis2 show_mis"><span class="n"><a id="t703" href="#t703">703</a></span><span class="t">                    <span class="key">for</span> <span class="nam">api_key</span> <span class="key">in</span> <span class="nam">api_keys</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis mis2 show_mis"><span class="n"><a id="t704" href="#t704">704</a></span><span class="t">                <span class="op">]</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis show_mis"><span class="n"><a id="t705" href="#t705">705</a></span><span class="t">                <span class="key">await</span> <span class="nam">asyncio</span><span class="op">.</span><span class="nam">gather</span><span class="op">(</span><span class="op">*</span><span class="nam">tasks</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t691" href="#t691">691</a></span><span class="t">        <span class="key">while</span> <span class="key">not</span> <span class="nam">stop_event</span><span class="op">.</span><span class="nam">wait</span><span class="op">(</span><span class="nam">steam_web_api_cache_refresh_interval</span><span class="op">)</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t692" href="#t692">692</a></span><span class="t">            <span class="key">async</span> <span class="key">with</span> <span class="nam">pool_acquire</span><span class="op">(</span><span class="nam">pool</span><span class="op">)</span> <span class="key">as</span> <span class="nam">conn</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t693" href="#t693">693</a></span><span class="t">                <span class="nam">api_keys</span> <span class="op">=</span> <span class="key">await</span> <span class="nam">queries</span><span class="op">.</span><span class="nam">select_game_server_api_keys</span><span class="op">(</span><span class="nam">conn</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t694" href="#t694">694</a></span><span class="t">                <span class="nam">logger</span><span class="op">.</span><span class="nam">info</span><span class="op">(</span><span class="str">"refreshing Steam Web API cache for {} keys"</span><span class="op">,</span> <span class="nam">len</span><span class="op">(</span><span class="nam">api_keys</span><span class="op">)</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t695" href="#t695">695</a></span><span class="t">            <span class="key">async</span> <span class="key">with</span> <span class="nam">httpx</span><span class="op">.</span><span class="nam">AsyncClient</span><span class="op">(</span><span class="nam">timeout</span><span class="op">=</span><span class="num">30.0</span><span class="op">)</span> <span class="key">as</span> <span class="nam">client</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t696" href="#t696">696</a></span><span class="t">                <span class="nam">tasks</span> <span class="op">=</span> <span class="op">[</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t697" href="#t697">697</a></span><span class="t">                    <span class="nam">is_real_game_server</span><span class="op">(</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t698" href="#t698">698</a></span><span class="t">                        <span class="nam">game_server_address</span><span class="op">=</span><span class="nam">api_key</span><span class="op">[</span><span class="str">"game_server_address"</span><span class="op">]</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t699" href="#t699">699</a></span><span class="t">                        <span class="nam">game_server_port</span><span class="op">=</span><span class="nam">api_key</span><span class="op">[</span><span class="str">"game_server_port"</span><span class="op">]</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t700" href="#t700">700</a></span><span class="t">                        <span class="nam">pg_pool</span><span class="op">=</span><span class="nam">pool</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t701" href="#t701">701</a></span><span class="t">                        <span class="nam">http_client</span><span class="op">=</span><span class="nam">client</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t702" href="#t702">702</a></span><span class="t">                    <span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t703" href="#t703">703</a></span><span class="t">                    <span class="key">for</span> <span class="nam">api_key</span> <span class="key">in</span> <span class="nam">api_keys</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t704" href="#t704">704</a></span><span class="t">                <span class="op">]</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t705" href="#t705">705</a></span><span class="t">                <span class="key">await</span> <span class="nam">asyncio</span><span class="op">.</span><span class="nam">gather</span><span class="op">(</span><span class="op">*</span><span class="nam">tasks</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t706" href="#t706">706</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="mis show_mis"><span class="n"><a id="t707" href="#t707">707</a></span><span class="t">    <span class="key">except</span> <span class="nam">KeyboardInterrupt</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
     <p class="mis show_mis"><span class="n"><a id="t708" href="#t708">708</a></span><span class="t">        <span class="key">await</span> <span class="nam">app_cache</span><span class="op">.</span><span class="nam">close</span><span class="op">(</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
@@ -816,7 +816,7 @@
             <a class="nav" href="z_706e4cdfdb2edf69___init___py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.12.0">coverage.py v7.12.0</a>,
-            created at 2025-11-22 21:47 +0000
+            created at 2025-11-22 22:50 +0000
         </p>
     </div>
 </footer>
