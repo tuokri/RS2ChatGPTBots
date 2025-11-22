@@ -130,6 +130,24 @@ async def select_game(
     return None
 
 
+# TODO: select * or do we need a way to specify columns?
+async def select_games(
+        conn: Connection,
+        timeout: float | None = _default_conn_timeout,
+) -> list[models.Game]:
+    games = await conn.fetch(
+        """
+        SELECT *
+        FROM "game";
+        """,
+        timeout=timeout,
+    )
+    return [
+        models.Game(**game)
+        for game in games if game
+    ]
+
+
 async def upsert_game_objective_state(
         conn: Connection,
         state: models.GameObjectiveState,

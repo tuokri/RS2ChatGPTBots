@@ -27,6 +27,8 @@ import logging
 import random
 import threading
 from typing import AsyncGenerator
+from typing import Callable
+from typing import Coroutine
 
 import asyncpg
 import nest_asyncio
@@ -34,6 +36,7 @@ import pytest
 import pytest_asyncio
 from pytest_loguru.plugin import caplog  # noqa: F401
 
+from chatgpt_proxy.db import queries
 from chatgpt_proxy.tests import setup  # noqa: E402
 from chatgpt_proxy.utils import utils
 
@@ -54,6 +57,9 @@ _background_tasks = set()
 @pytest_asyncio.fixture
 async def maintenance_fixture(
 ) -> AsyncGenerator[asyncpg.Connection]:
+    global _task_exception
+    _task_exception = None
+
     loop = asyncio.get_running_loop()
     nest_asyncio.apply(loop=loop)
 
@@ -94,28 +100,47 @@ async def maintenance_fixture(
     await test_db_pool.close()
 
 
-async def delayed_stop_task(delay: float, stop_event: threading.Event):
-    logger.info("setting stop_event after: {} seconds", delay)
-    await asyncio.sleep(delay)
-    stop_event.set()
-    logger.info("stop_event set")
+async def delayed_check_task(
+        stop_event: threading.Event,
+        check_result_coro: Callable[[], Coroutine[None, None, bool]],
+        timeout: float,
+):
+    try:
+        now = datetime.datetime.now()
+        to = now + datetime.timedelta(seconds=timeout)
+        while not await check_result_coro():
+            now = datetime.datetime.now()
+            if now > to:
+                # TODO: would be nice to communicate the reason here,
+                #       for example by somehow returning a 'context'
+                #       from check_result_coro!
+                raise TimeoutError("timed out")
+            await asyncio.sleep(0.05)
+    finally:
+        stop_event.set()
 
-    # TODO: perform assertions here?!
+
+_task_exception: BaseException | None = None
 
 
-def schedule_delayed_stop(delay: float, stop_event: threading.Event):
-    if stop_event.is_set():
-        logger.info("stop_event already set, not scheduling stop task")
-        return
-
-    task = asyncio.create_task(delayed_stop_task(delay, stop_event))
+def schedule_delayed_check(
+        stop_event: threading.Event,
+        check_result_coro: Callable[[], Coroutine[None, None, bool]],
+        timeout: float,
+):
+    task = asyncio.create_task(
+        delayed_check_task(stop_event, check_result_coro, timeout))
     _background_tasks.add(task)
+
+    def check_task(task_: asyncio.Task[None]):
+        global _task_exception
+        ex = task_.exception()
+        if ex:
+            logger.error("task failed: {}: {}", task_, type(ex).__name__)
+            _task_exception = ex
+
+    task.add_done_callback(check_task)
     task.add_done_callback(_background_tasks.discard)
-
-
-# TODO: to speed up completion of these tests, actively poll for the
-#       desired result (or timeout), and set the stop_event when desired
-#       result is reached.
 
 
 @pytest.mark.timeout(10)
@@ -176,12 +201,15 @@ async def test_db_maintenance(maintenance_fixture, caplog) -> None:
         for x in range(5)
     ]
     expirations = [
-        now - datetime.timedelta(hours=x)
+        now - datetime.timedelta(hours=x + 1)
         for x in range(5)
     ]
+    key_hashes = [
+        hashlib.sha256(random.randbytes(64)).digest()
+        for _ in range(5)
+    ]
 
-    for x, (created_at, expires_at) in enumerate(zip(creations, expirations)):
-        key_hash = hashlib.sha256(random.randbytes(64)).digest()
+    for x, (created_at, expires_at, key_hash) in enumerate(zip(creations, expirations, key_hashes)):
         await db_conn.execute(
             f"""
             INSERT INTO "game_server_api_key"
@@ -195,22 +223,42 @@ async def test_db_maintenance(maintenance_fixture, caplog) -> None:
             timeout=_db_timeout,
         )
 
+    async def check_result() -> bool:
+        games = await queries.select_games(db_conn)
+        old_games_deleted = not any(
+            game.id in old_game_ids
+            for game in games
+        )
+        keys = await queries.select_game_server_api_keys(db_conn)
+        old_api_keys_deleted = not any(
+            key["api_key_hash"] in key_hashes
+            for key in keys
+        )
+        return old_games_deleted and old_api_keys_deleted
+
     stop_event = threading.Event()
-    schedule_delayed_stop(1.0, stop_event)
-    await db_maintenance(stop_event)
+    schedule_delayed_check(stop_event, check_result_coro=check_result, timeout=5.0)
+    await db_maintenance(stop_event)  # type: ignore[arg-type]
+    if _task_exception:
+        raise _task_exception
 
 
 @pytest.mark.timeout(10)
 @pytest.mark.asyncio
 async def test_refresh_steam_web_api_cache(maintenance_fixture, caplog) -> None:
     caplog.set_level(logging.DEBUG)
-    _ = maintenance_fixture
+    db_conn = maintenance_fixture
 
     # TODO: fill database with API keys and ???.
 
     chatgpt_proxy.app.steam_web_api_cache_refresh_interval = 0.5
 
+    async def check_result() -> bool:
+        return True
+
     stop_event = threading.Event()
-    schedule_delayed_stop(1.0, stop_event)
+    schedule_delayed_check(stop_event, check_result_coro=check_result, timeout=5.0)
     # TODO: this needs mocked Steam Web API (see test_api.py).
     # await refresh_steam_web_api_cache(stop_event)
+    if _task_exception:
+        raise _task_exception
