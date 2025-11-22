@@ -44,6 +44,7 @@ setup.common_test_setup()
 
 import chatgpt_proxy.app  # noqa: E402
 from chatgpt_proxy.app import db_maintenance  # noqa: E402
+from chatgpt_proxy.app import refresh_steam_web_api_cache  # noqa: E402
 from chatgpt_proxy.db import pool_acquire  # noqa: E402
 from chatgpt_proxy.log import logger  # noqa: E402
 
@@ -254,11 +255,15 @@ async def test_refresh_steam_web_api_cache(maintenance_fixture, caplog) -> None:
     chatgpt_proxy.app.steam_web_api_cache_refresh_interval = 0.5
 
     async def check_result() -> bool:
+        # TODO!
+        await asyncio.sleep(1.0)
         return True
 
     stop_event = threading.Event()
     schedule_delayed_check(stop_event, check_result_coro=check_result, timeout=5.0)
-    # TODO: this needs mocked Steam Web API (see test_api.py).
-    # await refresh_steam_web_api_cache(stop_event)
+    # TODO: this needs mocked Steam Web API? See test_api.py).
+    # TODO: how can we even test this? Check that the cache object
+    #       has the keys directly?
+    await refresh_steam_web_api_cache(stop_event)
     if _task_exception:
         raise _task_exception
