@@ -21,7 +21,10 @@
 # SOFTWARE.
 
 import asyncio
+import datetime
+import hashlib
 import logging
+import random
 import threading
 from typing import AsyncGenerator
 
@@ -32,6 +35,7 @@ import pytest_asyncio
 from pytest_loguru.plugin import caplog  # noqa: F401
 
 from chatgpt_proxy.tests import setup  # noqa: E402
+from chatgpt_proxy.utils import utils
 
 setup.common_test_setup()
 
@@ -96,6 +100,8 @@ async def delayed_stop_task(delay: float, stop_event: threading.Event):
     stop_event.set()
     logger.info("stop_event set")
 
+    # TODO: perform assertions here?!
+
 
 def schedule_delayed_stop(delay: float, stop_event: threading.Event):
     if stop_event.is_set():
@@ -116,12 +122,78 @@ def schedule_delayed_stop(delay: float, stop_event: threading.Event):
 @pytest.mark.asyncio
 async def test_db_maintenance(maintenance_fixture, caplog) -> None:
     caplog.set_level(logging.DEBUG)
-    _ = maintenance_fixture
+    db_conn = maintenance_fixture
 
     chatgpt_proxy.app.db_maintenance_interval = 0.5
 
-    # TODO: fill database with completed games and
-    #       old API keys.
+    old_game_ids = [
+        "OLD_GAME_0",
+        "OLD_GAME_1",
+        "OLD_GAME_2",
+    ]
+
+    expr = chatgpt_proxy.app.game_expiration
+    expr_hours = expr.total_seconds() // 3600
+
+    await db_conn.execute(
+        f"""
+            INSERT INTO "game" (id,
+                                level,
+                                start_time,
+                                stop_time,
+                                game_server_address,
+                                game_server_port,
+                                openai_previous_response_id)
+            VALUES ('{old_game_ids[0]}',
+                    'VNTE-Mapperino',
+                    NOW() - INTERVAL '{expr_hours + 10} hours',
+                    NOW() - INTERVAL '{expr_hours + 9} hours',
+                    INET '127.0.1.1',
+                    7777,
+                    'openai_dummy_id_1'),
+                   ('{old_game_ids[1]}',
+                    'RRTE-DogCat',
+                    NOW() - INTERVAL '{expr_hours + 9} hours',
+                    NOW() - INTERVAL '{expr_hours + 8} hours',
+                    INET '127.0.1.1',
+                    7777,
+                    'openai_dummy_id_2'),
+                   ('{old_game_ids[2]}',
+                    'VNSU-AnLaoValleyXD',
+                    NOW() - INTERVAL '{expr_hours + 2} hours',
+                    NOW() - INTERVAL '{expr_hours + 1} hours',
+                    INET '127.0.1.1',
+                    7777,
+                    'openai_dummy_id_2')
+            ;
+            """,
+        timeout=_db_timeout,
+    )
+
+    now = utils.utcnow()
+    creations = [
+        now - datetime.timedelta(hours=x * 2, minutes=random.randint(0, 59))
+        for x in range(5)
+    ]
+    expirations = [
+        now - datetime.timedelta(hours=x)
+        for x in range(5)
+    ]
+
+    for x, (created_at, expires_at) in enumerate(zip(creations, expirations)):
+        key_hash = hashlib.sha256(random.randbytes(64)).digest()
+        await db_conn.execute(
+            f"""
+            INSERT INTO "game_server_api_key"
+            (created_at, expires_at, api_key_hash, game_server_address, game_server_port, name)
+            VALUES
+            ($1, $2, $3, INET '127.0.1.1', 7777, 'test_maintenance API key {x}');
+            """,
+            created_at,
+            expires_at,
+            key_hash,
+            timeout=_db_timeout,
+        )
 
     stop_event = threading.Event()
     schedule_delayed_stop(1.0, stop_event)
