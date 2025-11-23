@@ -27,3 +27,5 @@ instance.
 ## TODO
 
 Remember to build a server-only version of LibHTTP for all SWS/GitHub releases!
+
+Logging setup for production deployment!
