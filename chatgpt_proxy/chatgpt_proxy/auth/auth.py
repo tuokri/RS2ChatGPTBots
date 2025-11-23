@@ -60,17 +60,35 @@ load_config()
 ttl_is_real_game_server = datetime.timedelta(minutes=60).total_seconds()
 
 
+def _is_real_game_server_key_builder(*args, **kwargs) -> str:
+    """NOTE: this function is specific to is_real_game_server!"""
+
+    # NOTE: has to be kept in sync manually with
+    #       the real signature of is_real_game_server!
+    kwargs.pop("pg_pool")
+    kwargs.pop("http_client")
+
+    ordered_kwargs = sorted(kwargs.items())
+    return (
+            (is_real_game_server.__module__ or "")
+            + is_real_game_server.__name__
+            + str(args)
+            + str(ordered_kwargs)
+    )
+
+
 # TODO: waiting for updated aiocache + valkey-glide support on Windows!
 #   - In the meanwhile, only use memory cache!
 #   - See pyproject.toml for more details!
 # TODO: FIXME: IMPORTANT:
 #   ENABLING THIS BREAKS TESTING! CACHE SHOULD BE CLEARED IN CERTAIN TESTS!
 #   FOR THAT, WE NEED TO USE app_cache, BUT WE CANNOT DO THAT UNTIL
-#   aiocached IS PATCHED! SEE THE ABOVE NOTE!
+#   aiocache IS PATCHED! SEE THE ABOVE NOTE!
 # @aiocache.cached(
 #     # cache=app_cache,
 #     cache=aiocache.Cache.MEMORY,
 #     ttl=ttl_is_real_game_server,
+#     key_builder=_is_real_game_server_key_builder,
 #     # NOTE: Only cache the result if the server was successfully verified.
 #     skip_cache_func=lambda x: x is False,
 # )
