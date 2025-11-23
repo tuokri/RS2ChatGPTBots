@@ -65,7 +65,7 @@
             <a id="nextFileLink" class="nav" href="z_2954b0547d1aec56___init___py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.12.0">coverage.py v7.12.0</a>,
-            created at 2025-11-22 22:50 +0000
+            created at 2025-11-23 00:15 +0000
         </p>
         <aside class="hidden">
             <button type="button" class="button_next_chunk" data-shortcut="j"></button>
@@ -343,10 +343,10 @@
     <p class="pln"><span class="n"><a id="t261" href="#t261">261</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t262" href="#t262">262</a></span><span class="t">    <span class="nam">stop_event</span> <span class="op">=</span> <span class="nam">threading</span><span class="op">.</span><span class="nam">Event</span><span class="op">(</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t263" href="#t263">263</a></span><span class="t">    <span class="nam">schedule_delayed_check</span><span class="op">(</span><span class="nam">stop_event</span><span class="op">,</span> <span class="nam">check_result_coro</span><span class="op">=</span><span class="nam">check_result</span><span class="op">,</span> <span class="nam">timeout</span><span class="op">=</span><span class="num">5.0</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t264" href="#t264">264</a></span><span class="t">    <span class="com"># TODO: this needs mocked Steam Web API? See test_api.py).</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t264" href="#t264">264</a></span><span class="t">    <span class="com"># TODO: this needs mocked Steam Web API? See test_api.py.</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t265" href="#t265">265</a></span><span class="t">    <span class="com"># TODO: how can we even test this? Check that the cache object</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t266" href="#t266">266</a></span><span class="t">    <span class="com">#       has the keys directly?</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t267" href="#t267">267</a></span><span class="t">    <span class="key">await</span> <span class="nam">refresh_steam_web_api_cache</span><span class="op">(</span><span class="nam">stop_event</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t267" href="#t267">267</a></span><span class="t">    <span class="key">await</span> <span class="nam">refresh_steam_web_api_cache</span><span class="op">(</span><span class="nam">stop_event</span><span class="op">)</span>  <span class="com"># type: ignore[arg-type]</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t268" href="#t268">268</a></span><span class="t">    <span class="key">if</span> <span class="nam">_task_exception</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
     <p class="mis show_mis"><span class="n"><a id="t269" href="#t269">269</a></span><span class="t">        <span class="key">raise</span> <span class="nam">_task_exception</span>&nbsp;</span><span class="r"></span></p>
 </main>
@@ -358,7 +358,7 @@
             <a class="nav" href="z_2954b0547d1aec56___init___py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.12.0">coverage.py v7.12.0</a>,
-            created at 2025-11-22 22:50 +0000
+            created at 2025-11-23 00:15 +0000
         </p>
     </div>
 </footer>
