@@ -261,9 +261,9 @@ async def test_refresh_steam_web_api_cache(maintenance_fixture, caplog) -> None:
 
     stop_event = threading.Event()
     schedule_delayed_check(stop_event, check_result_coro=check_result, timeout=5.0)
-    # TODO: this needs mocked Steam Web API? See test_api.py).
+    # TODO: this needs mocked Steam Web API? See test_api.py.
     # TODO: how can we even test this? Check that the cache object
     #       has the keys directly?
-    await refresh_steam_web_api_cache(stop_event)
+    await refresh_steam_web_api_cache(stop_event)  # type: ignore[arg-type]
     if _task_exception:
         raise _task_exception
