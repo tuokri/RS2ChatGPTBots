@@ -20,8 +20,10 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-# Implements a simple proxy server for communication between an UnrealScript
-# client and OpenAI servers.
+"""
+Implements a simple proxy server for communication between an UnrealScript
+client and OpenAI servers.
+"""
 
 import asyncio
 import dataclasses
@@ -33,6 +35,7 @@ from http import HTTPStatus
 from multiprocessing.synchronize import Event as EventType
 from pprint import pprint
 from typing import Any
+from typing import Awaitable
 
 import asyncpg
 import httpx
@@ -77,7 +80,10 @@ api_v1 = Blueprint("api", version_prefix="/api/v", version=1)
 
 
 def db_maintenance_process(stop_event: EventType) -> None:
+    logger.debug("db_maintenance_process starting")
     asyncio.run(db_maintenance(stop_event))
+    asyncio.run(_suppress(app_cache.close()))  # TODO: this doesn't actually run ever?
+    logger.debug("db_maintenance_process done")
 
 
 def refresh_steam_web_api_cache_process(stop_event: EventType) -> None:
@@ -144,19 +150,28 @@ def make_api_v1_app(name: str = "ChatGPTProxy", **kwargs: Any) -> App:
     # noinspection PyProtectedMember
     @_app.before_server_stop
     async def before_server_stop(app_: App, _):
-        if app_.ctx._client:
-            await app_.ctx._client.close()
-        if app_.ctx._pg_pool:
-            await app_.ctx._pg_pool.close()
-        if app_.ctx._http_client:
-            await app_.ctx._http_client.aclose()
+        logger.debug("before_server_stop")
 
-        await app_cache.close()
-        await db_cache.close()
+        if app_.ctx._client:
+            await _suppress(app_.ctx._client.close())
+        if app_.ctx._pg_pool:
+            await _suppress(app_.ctx._pg_pool.close())
+        if app_.ctx._http_client:
+            await _suppress(app_.ctx._http_client.aclose())
+
+        await _suppress(app_cache.close())
+        await _suppress(db_cache.close())
 
     _app.blueprint(api_v1)
 
     return _app
+
+
+async def _suppress(f: Awaitable[Any]) -> Any:
+    try:
+        return await f
+    except Exception as e:
+        logger.exception("{}: error: {}", f, type(e).__name__)
 
 
 # TODO: dynamic model selection?
@@ -660,6 +675,8 @@ async def db_maintenance(stop_event: EventType) -> None:
     pool: asyncpg.Pool | None = None
 
     try:
+        logger.debug("db_maintenance starting")
+
         db_url = os.environ.get("DATABASE_URL")
         pool = await asyncpg.create_pool(dsn=db_url, min_size=1, max_size=1)
 
@@ -677,6 +694,7 @@ async def db_maintenance(stop_event: EventType) -> None:
                     logger.info("delete_old_api_keys: {}", result)
 
     except KeyboardInterrupt:
+        logger.debug("db_maintenance stopping")
         if pool:
             await pool.close()
 
@@ -705,7 +723,6 @@ async def refresh_steam_web_api_cache(stop_event: EventType) -> None:
                 await asyncio.gather(*tasks)
 
     except KeyboardInterrupt:
-        await app_cache.close()
         if pool:
             await pool.close()
 

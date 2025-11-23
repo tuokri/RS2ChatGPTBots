@@ -23,6 +23,13 @@
 # TODO: set up the usual stuff, log levels, etc.
 # TODO: we'll probably want to inject Sanic client IP/port in this logger too?
 
+import sys
+
 from loguru import logger
+
+logger.remove()
+
+# TODO: sync context with Sanic!
+logger.add(sys.stdout, enqueue=True, context="spawn")
 
 logger = logger
