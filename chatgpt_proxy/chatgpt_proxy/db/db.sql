@@ -104,8 +104,9 @@ CREATE TABLE IF NOT EXISTS "game_objective_state"
 
 CREATE TABLE IF NOT EXISTS "query_statistics"
 (
-    id                    BOOLEAN PRIMARY KEY UNIQUE DEFAULT TRUE,
-    steam_web_api_queries BIGINT NOT NULL            DEFAULT 0,
+    id                       BOOLEAN PRIMARY KEY UNIQUE DEFAULT TRUE,
+    steam_web_api_queries    BIGINT NOT NULL            DEFAULT 0,
+    last_steam_web_api_query TIMESTAMPTZ,
 
     CHECK (id)
 );

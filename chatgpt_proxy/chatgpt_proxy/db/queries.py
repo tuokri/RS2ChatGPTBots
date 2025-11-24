@@ -557,7 +557,8 @@ async def increment_steam_web_api_queries(
         await conn.execute(
             """
             UPDATE "query_statistics"
-            SET steam_web_api_queries = steam_web_api_queries + 1;
+            SET steam_web_api_queries    = steam_web_api_queries + 1,
+                last_steam_web_api_query = NOW();
             """,
             timeout=timeout,
         )
