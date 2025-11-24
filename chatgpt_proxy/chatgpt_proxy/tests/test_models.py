@@ -1,0 +1,36 @@
+# MIT License
+#
+# Copyright (c) 2025 Tuomo Kriikkula
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in all
+# copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
+
+import pytest
+
+from chatgpt_proxy.db.models import GameObjectiveState
+from chatgpt_proxy.db.models import max_ast_literal_eval_size
+
+
+def test_game_objective_state():
+    ok_data = "[('BlaBla', 0), ('AnotherObjective', 1), ('THIS IS SOME WEIRD OBJECTIVE 123123', 3)]"
+    gos = GameObjectiveState.from_wire_format("some_id_here", ok_data)
+    assert gos.game_id == "some_id_here"
+
+    with pytest.raises(ValueError):
+        GameObjectiveState.from_wire_format(
+            "asd", "x" * (max_ast_literal_eval_size + 1))
