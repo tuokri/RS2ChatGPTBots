@@ -66,8 +66,8 @@ def is_real_game_server_key_builder(*args, **kwargs) -> str:
 
     # NOTE: has to be kept in sync manually with
     #       the real signature of is_real_game_server!
-    kwargs.pop("pg_pool")
-    kwargs.pop("http_client")
+    kwargs.pop("pg_pool", None)
+    kwargs.pop("http_client", None)
 
     ordered_kwargs = sorted(kwargs.items())
     return (
@@ -101,6 +101,8 @@ async def is_real_game_server(
         http_client: httpx.AsyncClient,
 ) -> bool:
     try:
+        logger.debug("checking if {}:{} is a real RS2 server", game_server_address, game_server_port)
+
         resp = await steam.web_api_request(
             http_client=http_client,
             pg_pool=pg_pool,
