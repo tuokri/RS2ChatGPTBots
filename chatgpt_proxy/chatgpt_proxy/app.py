@@ -209,11 +209,12 @@ Since the beginning of the game, the following additional events have happened:
 {instruction_to_llm}
 """
 
+# TODO: set these lower for debug/dev env?
 # We prune all matches that have ended or are older
 # than 5 hours during database maintenance.
 game_expiration = datetime.timedelta(hours=5)
 api_key_deletion_leeway = datetime.timedelta(minutes=5)
-db_maintenance_interval = 30.0
+db_maintenance_interval = datetime.timedelta(minutes=30).total_seconds()
 steam_web_api_cache_refresh_interval = datetime.timedelta(minutes=30).total_seconds()
 
 game_id_length = 24
