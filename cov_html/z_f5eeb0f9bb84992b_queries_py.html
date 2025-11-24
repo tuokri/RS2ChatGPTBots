@@ -65,7 +65,7 @@
             <a id="nextFileLink" class="nav" href="z_4c1d1092c5bff932_gen_api_key_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.12.0">coverage.py v7.12.0</a>,
-            created at 2025-11-24 08:26 +0000
+            created at 2025-11-24 22:35 +0000
         </p>
         <aside class="hidden">
             <button type="button" class="button_next_chunk" data-shortcut="j"></button>
@@ -639,24 +639,25 @@
     <p class="run"><span class="n"><a id="t557" href="#t557">557</a></span><span class="t">        <span class="key">await</span> <span class="nam">conn</span><span class="op">.</span><span class="nam">execute</span><span class="op">(</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t558" href="#t558">558</a></span><span class="t">            <span class="str">"""</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t559" href="#t559">559</a></span><span class="t"><span class="str">            UPDATE "query_statistics"</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run run2"><span class="n"><a id="t560" href="#t560">560</a></span><span class="t"><span class="str">            SET steam_web_api_queries = steam_web_api_queries + 1;</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run run2"><span class="n"><a id="t561" href="#t561">561</a></span><span class="t"><span class="str">            """</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run run2"><span class="n"><a id="t562" href="#t562">562</a></span><span class="t">            <span class="nam">timeout</span><span class="op">=</span><span class="nam">timeout</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run run2"><span class="n"><a id="t563" href="#t563">563</a></span><span class="t">        <span class="op">)</span>&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t564" href="#t564">564</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t560" href="#t560">560</a></span><span class="t"><span class="str">            SET steam_web_api_queries    = steam_web_api_queries + 1,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t561" href="#t561">561</a></span><span class="t"><span class="str">                last_steam_web_api_query = NOW();</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t562" href="#t562">562</a></span><span class="t"><span class="str">            """</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t563" href="#t563">563</a></span><span class="t">            <span class="nam">timeout</span><span class="op">=</span><span class="nam">timeout</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t564" href="#t564">564</a></span><span class="t">        <span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t565" href="#t565">565</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t566" href="#t566">566</a></span><span class="t"><span class="key">async</span> <span class="key">def</span> <span class="nam">select_steam_web_api_queries</span><span class="op">(</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run run2"><span class="n"><a id="t567" href="#t567">567</a></span><span class="t">        <span class="nam">conn</span><span class="op">:</span> <span class="nam">Connection</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run run2"><span class="n"><a id="t568" href="#t568">568</a></span><span class="t">        <span class="nam">timeout</span><span class="op">:</span> <span class="nam">float</span> <span class="op">|</span> <span class="key">None</span> <span class="op">=</span> <span class="nam">_default_conn_timeout</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run run2"><span class="n"><a id="t569" href="#t569">569</a></span><span class="t"><span class="op">)</span> <span class="op">-></span> <span class="nam">int</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t570" href="#t570">570</a></span><span class="t">    <span class="nam">record</span> <span class="op">=</span> <span class="key">await</span> <span class="nam">conn</span><span class="op">.</span><span class="nam">fetchrow</span><span class="op">(</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run run2"><span class="n"><a id="t571" href="#t571">571</a></span><span class="t">        <span class="str">"""</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run run2"><span class="n"><a id="t572" href="#t572">572</a></span><span class="t"><span class="str">        SELECT steam_web_api_queries</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run run2"><span class="n"><a id="t573" href="#t573">573</a></span><span class="t"><span class="str">        FROM "query_statistics";</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run run2"><span class="n"><a id="t574" href="#t574">574</a></span><span class="t"><span class="str">        """</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run run2"><span class="n"><a id="t575" href="#t575">575</a></span><span class="t">        <span class="nam">timeout</span><span class="op">=</span><span class="nam">timeout</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run run2"><span class="n"><a id="t576" href="#t576">576</a></span><span class="t">    <span class="op">)</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t577" href="#t577">577</a></span><span class="t">    <span class="key">return</span> <span class="nam">record</span><span class="op">[</span><span class="str">"steam_web_api_queries"</span><span class="op">]</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t566" href="#t566">566</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t567" href="#t567">567</a></span><span class="t"><span class="key">async</span> <span class="key">def</span> <span class="nam">select_steam_web_api_queries</span><span class="op">(</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t568" href="#t568">568</a></span><span class="t">        <span class="nam">conn</span><span class="op">:</span> <span class="nam">Connection</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t569" href="#t569">569</a></span><span class="t">        <span class="nam">timeout</span><span class="op">:</span> <span class="nam">float</span> <span class="op">|</span> <span class="key">None</span> <span class="op">=</span> <span class="nam">_default_conn_timeout</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t570" href="#t570">570</a></span><span class="t"><span class="op">)</span> <span class="op">-></span> <span class="nam">int</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t571" href="#t571">571</a></span><span class="t">    <span class="nam">record</span> <span class="op">=</span> <span class="key">await</span> <span class="nam">conn</span><span class="op">.</span><span class="nam">fetchrow</span><span class="op">(</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t572" href="#t572">572</a></span><span class="t">        <span class="str">"""</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t573" href="#t573">573</a></span><span class="t"><span class="str">        SELECT steam_web_api_queries</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t574" href="#t574">574</a></span><span class="t"><span class="str">        FROM "query_statistics";</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t575" href="#t575">575</a></span><span class="t"><span class="str">        """</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t576" href="#t576">576</a></span><span class="t">        <span class="nam">timeout</span><span class="op">=</span><span class="nam">timeout</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t577" href="#t577">577</a></span><span class="t">    <span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t578" href="#t578">578</a></span><span class="t">    <span class="key">return</span> <span class="nam">record</span><span class="op">[</span><span class="str">"steam_web_api_queries"</span><span class="op">]</span>&nbsp;</span><span class="r"></span></p>
 </main>
 <footer>
     <div class="content">
@@ -666,7 +667,7 @@
             <a class="nav" href="z_4c1d1092c5bff932_gen_api_key_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.12.0">coverage.py v7.12.0</a>,
-            created at 2025-11-24 08:26 +0000
+            created at 2025-11-24 22:35 +0000
         </p>
     </div>
 </footer>
