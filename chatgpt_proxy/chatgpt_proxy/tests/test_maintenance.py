@@ -23,6 +23,7 @@
 import asyncio
 import datetime
 import hashlib
+import ipaddress
 import logging
 import random
 import threading
@@ -30,12 +31,14 @@ from typing import AsyncGenerator
 from typing import Callable
 from typing import Coroutine
 
+import aiocache
 import asyncpg
 import nest_asyncio
 import pytest
 import pytest_asyncio
 from pytest_loguru.plugin import caplog  # noqa: F401
 
+from chatgpt_proxy.auth.auth import is_real_game_server_key_builder
 from chatgpt_proxy.db import queries
 from chatgpt_proxy.tests import setup  # noqa: E402
 from chatgpt_proxy.utils import utils
@@ -248,15 +251,21 @@ async def test_db_maintenance(maintenance_fixture, caplog) -> None:
 @pytest.mark.asyncio
 async def test_refresh_steam_web_api_cache(maintenance_fixture, caplog) -> None:
     caplog.set_level(logging.DEBUG)
-    db_conn = maintenance_fixture
+    _ = maintenance_fixture
 
     # TODO: fill database with API keys and ???.
 
     chatgpt_proxy.app.steam_web_api_cache_refresh_interval = 0.5
 
     async def check_result() -> bool:
-        # TODO!
-        await asyncio.sleep(1.0)
+        # TODO: change this when aiocache is updated!
+        _ = aiocache.Cache.MEMORY
+        _ = is_real_game_server_key_builder(
+            game_server_address=ipaddress.IPv4Address("127.0.0.1"),
+            game_server_port=7777,
+        )
+        # await cache.get(key)
+
         return True
 
     stop_event = threading.Event()
