@@ -23,6 +23,7 @@
 # TODO: set up the usual stuff, log levels, etc.
 # TODO: we'll probably want to inject Sanic client IP/port in this logger too?
 
+import logging
 import sys
 
 from loguru import logger
@@ -33,3 +34,30 @@ logger.remove()
 logger.add(sys.stdout, enqueue=True, context="spawn")
 
 logger = logger
+
+
+class InterceptHandler(logging.Handler):
+    """
+    Add logging handler to augment python stdlib logging.
+
+    Logs which would otherwise go to stdlib logging are redirected through
+    loguru.
+    """
+
+    @logger.catch(default=True, onerror=lambda _: sys.exit(1))
+    def emit(self, record):
+        try:
+            level = logger.level(record.levelname).name
+        except ValueError:
+            level = record.levelno
+
+        # Find caller from where originated the logged message.
+        frame, depth = sys._getframe(6), 6
+        while frame and frame.f_code.co_filename == logging.__file__:
+            frame = frame.f_back
+            depth += 1
+
+        logger.opt(depth=depth, exception=record.exc_info).log(level, record.getMessage())
+
+# TODO: come up with the best way of handling multiple library loggers.
+# logging.basicConfig(handlers=[InterceptHandler()], level=0, force=True)
