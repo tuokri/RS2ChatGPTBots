@@ -55,6 +55,7 @@ from chatgpt_proxy.db import queries
 from chatgpt_proxy.db.models import GameObjectiveState
 from chatgpt_proxy.db.models import SayType
 from chatgpt_proxy.db.models import Team
+from chatgpt_proxy.db.models import max_ast_literal_eval_size
 from chatgpt_proxy.log import logger
 from chatgpt_proxy.types import App
 from chatgpt_proxy.types import Context
@@ -88,9 +89,6 @@ def db_maintenance_process(stop_event: EventType) -> None:
 
 def refresh_steam_web_api_cache_process(stop_event: EventType) -> None:
     asyncio.run(refresh_steam_web_api_cache(stop_event))
-
-
-max_ast_literal_eval_size = 1000
 
 
 def make_api_v1_app(name: str = "ChatGPTProxy", **kwargs: Any) -> App:

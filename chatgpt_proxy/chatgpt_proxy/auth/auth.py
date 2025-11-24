@@ -58,9 +58,10 @@ def load_config() -> None:
 load_config()
 
 ttl_is_real_game_server = datetime.timedelta(minutes=60).total_seconds()
+ttl_validate_db_token = datetime.timedelta(minutes=5).total_seconds()
 
 
-def _is_real_game_server_key_builder(*args, **kwargs) -> str:
+def is_real_game_server_key_builder(*args, **kwargs) -> str:
     """NOTE: this function is specific to is_real_game_server!"""
 
     # NOTE: has to be kept in sync manually with
@@ -70,10 +71,10 @@ def _is_real_game_server_key_builder(*args, **kwargs) -> str:
 
     ordered_kwargs = sorted(kwargs.items())
     return (
-            (is_real_game_server.__module__ or "")
-            + is_real_game_server.__name__
-            + str(args)
-            + str(ordered_kwargs)
+        f"{is_real_game_server.__module__ or ""}"
+        f"{is_real_game_server.__name__}"
+        f"{str(args)}"
+        f"{str(ordered_kwargs)}"
     )
 
 
@@ -88,7 +89,7 @@ def _is_real_game_server_key_builder(*args, **kwargs) -> str:
 #     # cache=app_cache,
 #     cache=aiocache.Cache.MEMORY,
 #     ttl=ttl_is_real_game_server,
-#     key_builder=_is_real_game_server_key_builder,
+#     key_builder=is_real_game_server_key_builder,
 #     # NOTE: Only cache the result if the server was successfully verified.
 #     skip_cache_func=lambda x: x is False,
 # )
@@ -125,6 +126,61 @@ async def is_real_game_server(
         return False
 
 
+def validate_db_token_key_builder(*args, **kwargs) -> str:
+    """NOTE: this function is specific to validate_db_token!"""
+
+    # NOTE: has to be kept in sync manually with
+    #       the real signature of validate_db_token!
+    args = args[:-1]
+
+    ordered_kwargs = sorted(kwargs.items())
+    return (
+        f"{validate_db_token.__module__ or ""}"
+        f"{validate_db_token.__name__}"
+        f"{str(args)}"
+        f"{str(ordered_kwargs)}"
+    )
+
+
+# @aiocache.cached(
+#     # cache=app_cache,
+#     cache=aiocache.Cache.MEMORY,
+#     ttl=ttl_validate_db_token,
+#     key_builder=validate_db_token_key_builder,
+#     # NOTE: Only cache the result if the server was successfully verified.
+#     skip_cache_func=lambda x: x is False,
+# )
+async def validate_db_token(
+        request_token_hash: bytes,
+        addr: ipaddress.IPv4Address,
+        port: int,
+        pg_pool: asyncpg.Pool,
+) -> bool:
+    # TODO: we should cache this in memory (LRU) or diskcache.
+    # TODO: if an API key is deleted from the database, the cache
+    #       for said API key should also be cleared!
+
+    async with pool_acquire(pg_pool) as conn:
+        api_key = await queries.select_game_server_api_key(
+            conn=conn,
+            game_server_address=addr,
+            game_server_port=port,
+        )
+
+        logger.debug("api_key: {}", api_key)
+
+        if not api_key:
+            logger.debug("JWT validation failed: no API key for {}:{}", addr, port)
+            return False
+
+        db_api_key_hash: bytes = api_key["api_key_hash"]
+        if not compare_digest(request_token_hash, db_api_key_hash):
+            logger.debug("JWT validation failed: stored hash does not match token hash")
+            return False
+
+    return True
+
+
 async def check_token(request: Request, pg_pool: asyncpg.Pool) -> bool:
     if not request.token:
         logger.debug("JWT validation failed: no token")
@@ -158,25 +214,14 @@ async def check_token(request: Request, pg_pool: asyncpg.Pool) -> bool:
         logger.debug("JWT validation failed: (client_addr != addr): {} != {}", client_addr, addr)
         return False
 
-    # TODO: we should cache this in memory (LRU) or diskcache.
-    async with pool_acquire(pg_pool) as conn:
-        api_key = await queries.select_game_server_api_key(
-            conn=conn,
-            game_server_address=addr,
-            game_server_port=port,
-        )
-
-        logger.debug("api_key: {}", api_key)
-
-        if not api_key:
-            logger.debug("JWT validation failed: no API key for {}:{}", addr, port)
-            return False
-
-        req_token_hash = hashlib.sha256(request.token.encode("utf-8")).digest()
-        db_api_key_hash: bytes = api_key["api_key_hash"]
-        if not compare_digest(req_token_hash, db_api_key_hash):
-            logger.debug("JWT validation failed: stored hash does not match token hash")
-            return False
+    req_token_hash = hashlib.sha256(request.token.encode("utf-8")).digest()
+    if not await validate_db_token(
+            request_token_hash=req_token_hash,
+            addr=addr,
+            port=port,
+            pg_pool=pg_pool,
+    ):
+        return False
 
     if _steam_web_api_key is None:
         logger.warning("Steam Web API key is not set, "

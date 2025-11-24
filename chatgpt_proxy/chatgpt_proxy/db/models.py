@@ -28,6 +28,8 @@ import ipaddress
 from dataclasses import dataclass
 from enum import StrEnum
 
+max_ast_literal_eval_size = 1000
+
 
 # Mirrored in ChatGPTBotsMutator.uc!
 class SayType(StrEnum):
@@ -122,6 +124,9 @@ class GameObjectiveState:
             game_id: str,
             wire_format_data: str,
     ) -> "GameObjectiveState":
+        if len(wire_format_data) > max_ast_literal_eval_size:
+            raise ValueError("wire_format_data too long")
+
         raw_objs: list[tuple[str, int]] = ast.literal_eval(wire_format_data)
 
         t = type(raw_objs)
