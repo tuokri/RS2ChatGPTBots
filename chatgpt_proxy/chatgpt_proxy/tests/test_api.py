@@ -22,10 +22,13 @@
 
 import asyncio
 import datetime
+import errno
 import hashlib
 import ipaddress
 import logging
 import os
+import socket
+import time
 from typing import AsyncGenerator
 
 import asyncpg
@@ -307,8 +310,36 @@ async def api_fixture(
                 }
             )
 
+            ports = []
+            # TODO: retry here X times if reusable_client raises PermissionError!
             with reusable_client:
+                ports.extend([reusable_client.port, app.state.port])
                 yield app, reusable_client, openai_mock_router, steam_web_api_mock_router, conn
+
+            # Try to work around a port staying in use longer than expected!
+            # noinspection PyProtectedMember
+            for port in ports:
+                to = 5.0
+                logger.info("waiting max {} seconds for port {} to be available", to, port)
+                timeout = time.time() + to
+                while time.time() < timeout:
+                    temp_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                    try:
+                        temp_sock.bind(("0.0.0.0", port))
+                        break
+                    except PermissionError:
+                        raise
+                        time.sleep(0.05)
+                    except socket.error as e:
+                        raise
+                        if e.errno == errno.EADDRINUSE:
+                            time.sleep(0.05)
+                    finally:
+                        try:
+                            temp_sock.close()
+                        except Exception as e:
+                            logger.debug("error closing socket: {}: {}", type(e).__name__, e)
+                        del temp_sock
 
     async with pool_acquire(db_fixture_pool, timeout=_db_timeout) as conn:
         await setup.drop_test_db(conn, timeout=_db_timeout)
