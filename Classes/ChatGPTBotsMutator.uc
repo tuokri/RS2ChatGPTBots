@@ -719,6 +719,10 @@ function HTTPDelete(string Url, optional float Timeout = 2.0)
 function PostGame()
 {
     local Request Req;
+    local ROGameEngine GameEngine;
+    local string MapName;
+    local string FriendlyMapName;
+    local ROUIDataProvider_MapInfo MapInfoProvider;
 
     if (GameId != "")
     {
@@ -726,10 +730,19 @@ function PostGame()
         return;
     }
 
+    GameEngine = ROGameEngine(class'Engine'.static.GetEngine());
+    MapName = WorldInfo.GetMapName(True);
+    MapInfoProvider = GameEngine.GetDataProvider_MapInfo(MapName);
+    FriendlyMapName = MapInfoProvider != None
+        ? MapInfoProvider.FriendlyName
+        : "";
+
     Req.Url = Config.ApiUrl $ "game";
     // TODO: is this the correct port? Or is GameInfo.ListenPort the correct one?
-    Req.Data = WorldInfo.GetMapName(True) $ "\n"
-        $ GameEngine(class'Engine'.static.GetEngine()).LastURL.Port;
+    Req.Data =
+        MapName $ "\n" $
+        FriendlyMapName $ "\n" $
+        GameEngine.LastURL.Port;
     Req.Verb = Verb_Post;
     Req.OnComplete = PostGame_OnComplete;
     Req.OnReturnCode = PostGame_OnReturnCode;
