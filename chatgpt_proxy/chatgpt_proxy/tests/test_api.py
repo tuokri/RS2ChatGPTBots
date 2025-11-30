@@ -22,13 +22,10 @@
 
 import asyncio
 import datetime
-import errno
 import hashlib
 import ipaddress
 import logging
 import os
-import socket
-import time
 from typing import AsyncGenerator
 
 import asyncpg
@@ -65,6 +62,7 @@ from chatgpt_proxy.db.models import Team  # noqa: E402
 from chatgpt_proxy.log import logger  # noqa: E402
 from chatgpt_proxy.tests.client import SpoofedSanicASGITestClient  # noqa: E402
 from chatgpt_proxy.tests.monkey_patch import monkey_patch_sanic_testing  # noqa: E402
+from chatgpt_proxy.tests.setup import retry_context  # noqa: E402
 from chatgpt_proxy.types import App  # noqa: E402
 from chatgpt_proxy.utils import utcnow  # noqa: E402
 
@@ -297,49 +295,36 @@ async def api_fixture(
                     },
                 ))
 
+            def retry_cb(exc: Exception, retry: int) -> None:
+                print("#" * 500)  # TODO: remove me!
+                logger.info(
+                    "reusable_client: retry attempt {}: error: {}: {}",
+                    retry, type(exc).__name__, exc,
+                )
+
             # NOTE: can't reuse the same app for ReusableClient!
             reusable_app = make_api_v1_app(
                 "ChatGPTProxy-Reusable",
             )
-            reusable_client = ReusableClient(
-                reusable_app,
-                host=_asgi_host,
-                loop=loop,
-                client_kwargs={
-                    "headers": _headers,
-                }
-            )
 
-            ports = []
-            # TODO: retry here X times if reusable_client raises PermissionError!
-            with reusable_client:
-                ports.extend([reusable_client.port, app.state.port])
+            def client_builder() -> ReusableClient:
+                return ReusableClient(
+                    reusable_app,
+                    host=_asgi_host,
+                    loop=loop,
+                    client_kwargs={
+                        "headers": _headers,
+                    }
+                )
+
+            with retry_context(
+                    client_builder,
+                    retries=5,
+                    delay=datetime.timedelta(milliseconds=500),
+                    exc_types=(PermissionError,),
+                    retry_cb=retry_cb,
+            ) as reusable_client:
                 yield app, reusable_client, openai_mock_router, steam_web_api_mock_router, conn
-
-            # Try to work around a port staying in use longer than expected!
-            # noinspection PyProtectedMember
-            for port in ports:
-                to = 5.0
-                logger.info("waiting max {} seconds for port {} to be available", to, port)
-                timeout = time.time() + to
-                while time.time() < timeout:
-                    temp_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                    try:
-                        temp_sock.bind(("0.0.0.0", port))
-                        break
-                    except PermissionError:
-                        raise
-                        time.sleep(0.05)
-                    except socket.error as e:
-                        raise
-                        if e.errno == errno.EADDRINUSE:
-                            time.sleep(0.05)
-                    finally:
-                        try:
-                            temp_sock.close()
-                        except Exception as e:
-                            logger.debug("error closing socket: {}: {}", type(e).__name__, e)
-                        del temp_sock
 
     async with pool_acquire(db_fixture_pool, timeout=_db_timeout) as conn:
         await setup.drop_test_db(conn, timeout=_db_timeout)
@@ -353,7 +338,7 @@ async def test_api_v1_post_game(api_fixture, caplog) -> None:
     caplog.set_level(logging.DEBUG)
     api_app, reusable_client, openai_mock_router, steam_mock_router, db_conn = api_fixture
 
-    data = "VNTE-TestSuite\n7777"
+    data = "VNTE-TestSuite\nTest Suite\n7777"
     req, resp = reusable_client.post("/api/v1/game", data=data)
     assert resp.status == 201
 

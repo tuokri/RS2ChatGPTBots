@@ -444,6 +444,27 @@ async def upsert_game_player(
     return bool(inserted)
 
 
+async def select_game_players(
+        conn: Connection,
+        game_id: str,
+        timeout: float | None = _default_conn_timeout,
+) -> list[models.GamePlayer]:
+    records = await conn.fetch(
+        """
+        SELECT *
+        FROM "game_player"
+        WHERE game_id = $1;
+        """,
+        game_id,
+        timeout=timeout,
+    )
+
+    return [
+        models.GamePlayer(**record)
+        for record in records
+    ]
+
+
 async def select_game_player(
         conn: Connection,
         game_id: str,

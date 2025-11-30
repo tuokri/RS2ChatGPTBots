@@ -179,34 +179,49 @@ openai_timeout = 60.0  # TODO: this might be way too low?
 prompt_max_game_chat_msgs = 30
 prompt_max_game_kills = 30
 
-# TODO: example prompt (the first one per game session).
-# TODO: this should only be sent from the UScript side after a small
-#       delay to allow the game state to "stabilize".
-base_prompt_initial = """
-You are a TODO.
+default_llm_task = """
+Your task is to roleplay as a 1970s retro-futuristic AI.
+Your name is MAINFRAME CHARLIE. You are provided with new
+information updates regularly and your job is to react to them,
+while staying in role. You are given data from an on-going real-life
+multiplayer video game match (Rising Storm 2: Vietnam) regularly.
+While writing responses, do not acknowledge the fact that you are
+reacting to a video game match. Pretend it is a real 1960s-1970s
+Vietnam war scenario. Keep your tone semi-serious, while using
+era and scenario appropriate humor every now and then.
+"""
 
-This is the beginning of a new game. The game currently contains
-the following players:
+base_prompt_initial = """
+{llm_task}
+
+This is the beginning of a new game. The current level is {level_sanitized}.
+
+The game currently contains the following players:
 {markdown_scoreboard_table}
 
-The last {num_kills} kills scored during the game are the
+The last kills scored during the game are the
 following (in ascending chronological order):
-{markdown_kills_table}}
+{markdown_kills_table}
 
-The last {num_chat_msgs} chat messages sent during the game are the
+The last chat messages sent during the game are the
 following (ascending in chronological order):
-{markdown_chat_msgs_table}}
+{markdown_chat_msgs_table}
 
 {initial_instruction}
 """
 
-# TODO: subsequent prompts should only need to update the data. E.g.:
+# TODO: we should include the time since the last prompt here?
 base_prompt_consecutive = """
-Since the beginning of the game, the following additional events have happened:
-{a} e.g. list of players joined/left
-{b} e.g. list of kills
-{c} e.g. list of chat messages
-{instruction_to_llm}
+The current game scoreboard:
+{markdown_scoreboard_table}
+
+Since the last update, the following kills have been scored:
+{markdown_kills_table}
+
+Since the last update, the following chat messages have been sent:
+{markdown_chat_msgs_table}
+
+{instruction}
 """
 
 # TODO: set these lower for debug/dev env?
@@ -219,19 +234,44 @@ steam_web_api_cache_refresh_interval = datetime.timedelta(minutes=30).total_seco
 
 game_id_length = 24
 
+# TODO: should this be parametrized? Sent in from the UScript side?
+max_message_length = 200
+
 
 def format_base_prompt_initial(
+        llm_task: str,
+        level_sanitized: str,
         markdown_scoreboard_table: str,
         markdown_kills_table: str,
         markdown_chat_msgs_table: str,
         initial_instruction: str,
 ) -> str:
     return base_prompt_initial.format(
+        llm_task=llm_task,
+        level_sanitized=level_sanitized,
         markdown_scoreboard_table=markdown_scoreboard_table,
         markdown_kills_table=markdown_kills_table,
         markdown_chat_msgs_table=markdown_chat_msgs_table,
         initial_instruction=initial_instruction,
     )
+
+
+async def get_scoreboard_markdown_table(
+        conn: asyncpg.Connection,
+        game_id: str,
+) -> str:
+    players = await queries.select_game_players(conn, game_id)
+    pprint(players)
+
+    scoreboard = ""
+    if players:
+        scoreboard = markdown_table([
+            player.as_markdown_dict()
+            for player in players
+        ]).get_markdown()
+        pprint(scoreboard)
+
+    return scoreboard
 
 
 async def get_kills_markdown_table(
@@ -260,10 +300,12 @@ async def get_kills_markdown_table(
 
 async def get_chat_messages_markdown_table(
         conn: asyncpg.Connection,
+        game_id: str,
         from_time: datetime.datetime,
 ) -> str:
     candidate_msgs = await queries.select_game_chat_messages(
         conn=conn,
+        game_id=game_id,
         send_time_from=from_time,
         limit=prompt_max_game_chat_msgs,
     )
@@ -278,6 +320,12 @@ async def get_chat_messages_markdown_table(
         pprint(msgs_table)
 
     return msgs_table
+
+
+def sanitize_level_name(level: str) -> str:
+    level = level.split("-")[-1]
+    level = level.replace("_", " ")
+    return level
 
 
 @api_v1.get("/game/<game_id:str>")
@@ -314,7 +362,7 @@ async def post_game(
 ) -> HTTPResponse:
     try:
         data = request.body.decode("utf-8")
-        level, port = data.split("\n")
+        level, friendly_level_name, port = data.split("\n")
         game_port = int(port)
     except Exception as e:
         logger.debug("error parsing game data: {}: {}", type(e).__name__, e)
@@ -337,9 +385,34 @@ async def post_game(
                 openai_previous_response_id=None,
             )
 
+        # TODO: should this be parametrized? At least take in the name?
+        llm_task = default_llm_task
+
+        if friendly_level_name:
+            level_sanitized = friendly_level_name
+        else:
+            level_sanitized = sanitize_level_name(level)
+
         # TODO: Send initial game state to the LLM, and ask it for a short greeting message.
+        scoreboard_table = await get_scoreboard_markdown_table(conn, game_id)
+        kills_table = await get_kills_markdown_table(conn, game_id, now)
+        chat_msgs_table = await get_chat_messages_markdown_table(conn, game_id, now)
+        # TODO: should we parametrize this?
+        initial_instruction = (
+            f"Provide a short greeting/boot-up message "
+            f"(maximum length {max_message_length} characters)."
+        )
+
+        prompt = format_base_prompt_initial(
+            llm_task=llm_task,
+            level_sanitized=level_sanitized,
+            markdown_scoreboard_table=scoreboard_table,
+            markdown_kills_table=kills_table,
+            markdown_chat_msgs_table=chat_msgs_table,
+            initial_instruction=initial_instruction,
+        )
+
         async with conn.transaction():
-            prompt = "Write a short poem of 100 letters or less."  # TODO
             openai_resp = await client.responses.create(
                 model=openai_model,
                 input=prompt,
@@ -420,8 +493,6 @@ async def post_game_message(
         logger.warning("unable to handle request for game with no openai_previous_response_id")
         return HTTPResponse(status=HTTPStatus.SERVICE_UNAVAILABLE)
 
-    level: str = game.level
-
     async with pool_acquire(pg_pool) as conn:
         previous_query = await queries.select_openai_query(
             conn=conn,
@@ -452,15 +523,9 @@ async def post_game_message(
         )
         msgs_table = await get_chat_messages_markdown_table(
             conn=conn,
+            game_id=game.id,
             from_time=previous_query.time,
         )
-
-        # TODO: format prompt here, taking maximum length into account!
-        #   E.g.: (rough drafts):
-        # Format kills table -> remove length from remaining budget.
-        # Calculate budget for remaining fields (weighted budgets).
-        max_chat_messages_to_add = 0  # Calculate budget.
-        max_kills_to_add = 0  # Calculate budget.
 
         async with conn.transaction():
             # TODO: how to best use instruction param here?

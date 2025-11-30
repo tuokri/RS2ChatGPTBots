@@ -37,6 +37,8 @@ class SayType(StrEnum):
     TEAM = "1"
 
 
+# TODO: for LLM prompting purposes, we could have some
+#       type to refer to US Army, PAVN, NLF, etc.!
 class Team(StrEnum):
     North = "0"
     South = "1"
@@ -61,6 +63,13 @@ class GamePlayer:
     name: str
     team: Team
     score: int
+
+    def as_markdown_dict(self) -> dict:
+        return {
+            "Name": self.name,
+            "Team:": self.team.name,
+            "Score:": self.score,
+        }
 
     def wire_format(self) -> str:
         return f"{self.name}\n{self.team}\n{self.score}"

@@ -20,8 +20,13 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
+import datetime
 import os
+import time
+from collections.abc import Callable
+from contextlib import contextmanager
 from pathlib import Path
+from typing import Any
 from urllib.parse import urlparse
 
 import asyncpg
@@ -135,3 +140,31 @@ def common_test_setup(
     os.environ["OPENAI_API_KEY"] = "dummy"
     os.environ["DATABASE_URL"] = db_test_url
     os.environ["STEAM_WEB_API_KEY"] = steam_web_api_key
+
+
+@contextmanager
+def retry_context(
+        builder: Callable[[], Any],
+        retries: int = 5,
+        delay: datetime.timedelta | None = None,
+        exc_types: tuple[type[Exception]] | None = None,
+        retry_cb: Callable[[Exception, int], None] | None = None,
+) -> Any:
+    if delay is None:
+        delay = datetime.timedelta(milliseconds=100)
+    if exc_types is None:
+        exc_types = (Exception,)
+
+    retry = 1
+    while True:
+        try:
+            with builder() as obj:
+                retries += 1
+                yield obj
+                return
+        except exc_types as e:
+            if retry_cb:
+                retry_cb(e, retry)
+            if retry > retries:
+                raise
+            time.sleep(delay.total_seconds())
