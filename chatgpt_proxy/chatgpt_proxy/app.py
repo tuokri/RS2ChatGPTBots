@@ -51,6 +51,7 @@ from chatgpt_proxy.auth import is_real_game_server
 from chatgpt_proxy.cache import app_cache
 from chatgpt_proxy.cache import db_cache
 from chatgpt_proxy.db import pool_acquire
+from chatgpt_proxy.db import pool_acquire_many
 from chatgpt_proxy.db import queries
 from chatgpt_proxy.db.models import GameObjectiveState
 from chatgpt_proxy.db.models import SayType
@@ -150,14 +151,22 @@ def make_api_v1_app(name: str = "ChatGPTProxy", **kwargs: Any) -> App:
     async def before_server_stop(app_: App, _):
         logger.debug("before_server_stop")
 
+        # TODO: cleanup should have timeouts!
+        #   If timed out, ignore it but log warning!
+
         if app_.ctx._client:
+            logger.debug("closing OpenAI client")
             await _suppress(app_.ctx._client.close())
         if app_.ctx._pg_pool:
+            logger.debug("closing pool")
             await _suppress(app_.ctx._pg_pool.close())
         if app_.ctx._http_client:
+            logger.debug("closing http client")
             await _suppress(app_.ctx._http_client.aclose())
 
+        logger.debug("closing app cache")
         await _suppress(app_cache.close())
+        logger.debug("closing DB cache")
         await _suppress(db_cache.close())
 
     _app.blueprint(api_v1)
@@ -253,6 +262,20 @@ def format_base_prompt_initial(
         markdown_kills_table=markdown_kills_table,
         markdown_chat_msgs_table=markdown_chat_msgs_table,
         initial_instruction=initial_instruction,
+    )
+
+
+def format_base_prompt_consecutive(
+        markdown_scoreboard_table: str,
+        markdown_kills_table: str,
+        markdown_chat_msgs_table: str,
+        instruction: str,
+) -> str:
+    return base_prompt_consecutive.format(
+        markdown_scoreboard_table=markdown_scoreboard_table,
+        markdown_kills_table=markdown_kills_table,
+        markdown_chat_msgs_table=markdown_chat_msgs_table,
+        instruction=instruction,
     )
 
 
@@ -365,12 +388,31 @@ async def post_game(
         level, friendly_level_name, port = data.split("\n")
         game_port = int(port)
     except Exception as e:
-        logger.debug("error parsing game data: {}: {}", type(e).__name__, e)
+        logger.info("error parsing game data: {}: {}", type(e).__name__, e)
+        logger.opt(exception=e).debug("")
         return HTTPResponse(status=HTTPStatus.BAD_REQUEST)
 
     now = utcnow()
     game_id = secrets.token_hex(game_id_length)
     addr = get_remote_addr(request)
+
+    # TODO: this would be so much better with functools.Placeholder!
+    tasks_args = (
+        (get_scoreboard_markdown_table, (game_id,)),
+        (get_kills_markdown_table, (game_id, now)),
+        (get_chat_messages_markdown_table, (game_id, now)),
+    )
+    async with pool_acquire_many(
+            pool=pg_pool,
+            count=len(tasks_args),
+    ) as conns:
+        tasks = (
+            task(conns[i], *args)
+            for i, (task, args) in enumerate(tasks_args)
+        )
+        scoreboard_table, kills_table, chat_msgs_table = await asyncio.gather(
+            *tasks
+        )
 
     async with pool_acquire(pg_pool) as conn:
         async with conn.transaction():
@@ -393,10 +435,6 @@ async def post_game(
         else:
             level_sanitized = sanitize_level_name(level)
 
-        # TODO: Send initial game state to the LLM, and ask it for a short greeting message.
-        scoreboard_table = await get_scoreboard_markdown_table(conn, game_id)
-        kills_table = await get_kills_markdown_table(conn, game_id, now)
-        chat_msgs_table = await get_chat_messages_markdown_table(conn, game_id, now)
         # TODO: should we parametrize this?
         initial_instruction = (
             f"Provide a short greeting/boot-up message "
@@ -498,35 +536,48 @@ async def post_game_message(
             conn=conn,
             openai_response_id=previous_response_id,
         )
-        if not previous_query:
-            logger.warning("cannot find OpenAI query for id: {}", previous_response_id)
-            return HTTPResponse(status=HTTPStatus.SERVICE_UNAVAILABLE)
+    if not previous_query:
+        logger.warning("cannot find OpenAI query for id: {}", previous_response_id)
+        return HTTPResponse(status=HTTPStatus.SERVICE_UNAVAILABLE)
 
-        try:
-            data_in = request.body.decode("utf-8").split("\n")
-            say_type = SayType(data_in[0])
-            say_team = Team(data_in[1])
-            say_name = data_in[2]
-            prompt_in = data_in[3]
-        except Exception as e:
-            logger.info("error parsing game message data: {}: {}", type(e).__name__, e)
-            # TODO: debug log stack trace or something?
-            return HTTPResponse(status=HTTPStatus.BAD_REQUEST)
+    try:
+        data_in = request.body.decode("utf-8").split("\n")
+        say_type = SayType(data_in[0])
+        say_team = Team(data_in[1])
+        say_name = data_in[2]
+        prompt_in = data_in[3]
+    except Exception as e:
+        logger.info("error parsing game message data: {}: {}", type(e).__name__, e)
+        # TODO: debug log stack trace or something?
+        return HTTPResponse(status=HTTPStatus.BAD_REQUEST)
 
-        # TODO: have some maximum upper limit for total prompt length.
-        prompt = ""  # TODO
-
-        kills_table = await get_kills_markdown_table(
-            conn=conn,
-            game_id=game.id,
-            from_time=previous_query.time,
+    # TODO: this would be so much better with functools.Placeholder!
+    tasks_args = (
+        (get_scoreboard_markdown_table, (game_id,)),
+        (get_kills_markdown_table, (game_id, previous_query.time)),
+        (get_chat_messages_markdown_table, (game_id, previous_query.time)),
+    )
+    async with pool_acquire_many(
+            pool=pg_pool,
+            count=len(tasks_args),
+    ) as conns:
+        tasks = (
+            task(conns[i], *args)
+            for i, (task, args) in enumerate(tasks_args)
         )
-        msgs_table = await get_chat_messages_markdown_table(
-            conn=conn,
-            game_id=game.id,
-            from_time=previous_query.time,
+        scoreboard_table, kills_table, chat_msgs_table = await asyncio.gather(
+            *tasks
         )
 
+    # TODO: have some maximum upper limit for total prompt length?
+    prompt = format_base_prompt_consecutive(
+        markdown_scoreboard_table=scoreboard_table,
+        markdown_kills_table=kills_table,
+        markdown_chat_msgs_table=chat_msgs_table,
+        instruction=prompt_in,  # TODO!
+    )
+
+    async with pool_acquire(pg_pool) as conn:
         async with conn.transaction():
             # TODO: how to best use instruction param here?
             resp = await client.responses.create(
