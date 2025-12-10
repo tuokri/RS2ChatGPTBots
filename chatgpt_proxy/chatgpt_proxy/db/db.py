@@ -24,9 +24,12 @@
 
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator
+from typing import cast
 
 from asyncpg import Connection
 from asyncpg import Pool
+
+from chatgpt_proxy.log import logger
 
 _default_acquire_timeout = 5.0
 
@@ -39,3 +42,26 @@ async def pool_acquire(
     conn: Connection
     async with pool.acquire(timeout=timeout) as conn:
         yield conn
+
+
+@asynccontextmanager
+async def pool_acquire_many(
+        pool: Pool,
+        count: int,
+        timeout: float = _default_acquire_timeout,
+) -> AsyncGenerator[list[Connection]]:
+    conns: list[Connection] = []
+    try:
+        for _ in range(count):
+            # noinspection PyUnresolvedReferences
+            conn = cast(Connection, await pool.acquire(timeout=timeout))
+            conns.append(conn)
+        yield conns
+    finally:
+        for conn in conns:
+            try:
+                await conn.close(timeout=timeout)
+            except Exception as e:
+                logger.debug(
+                    "error closing connection: {}: {}",
+                    type(e).__name__, e)
