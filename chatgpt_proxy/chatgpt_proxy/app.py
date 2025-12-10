@@ -224,10 +224,12 @@ base_prompt_consecutive = """
 The current game scoreboard:
 {markdown_scoreboard_table}
 
-Since the last update, the following kills have been scored:
+Since the last update, the following kills
+have been scored (last {num_kills} kills):
 {markdown_kills_table}
 
-Since the last update, the following chat messages have been sent:
+Since the last update, the following chat
+messages have been sent (last {num_messages} messages):
 {markdown_chat_msgs_table}
 
 {instruction}
@@ -268,13 +270,17 @@ def format_base_prompt_initial(
 def format_base_prompt_consecutive(
         markdown_scoreboard_table: str,
         markdown_kills_table: str,
+        num_kills: int,
         markdown_chat_msgs_table: str,
+        num_msgs: int,
         instruction: str,
 ) -> str:
     return base_prompt_consecutive.format(
         markdown_scoreboard_table=markdown_scoreboard_table,
         markdown_kills_table=markdown_kills_table,
+        num_kills=num_kills,
         markdown_chat_msgs_table=markdown_chat_msgs_table,
+        num_messages=num_msgs,
         instruction=instruction,
     )
 
@@ -282,7 +288,7 @@ def format_base_prompt_consecutive(
 async def get_scoreboard_markdown_table(
         conn: asyncpg.Connection,
         game_id: str,
-) -> str:
+) -> tuple[int, str]:
     players = await queries.select_game_players(conn, game_id)
     pprint(players)
 
@@ -294,14 +300,14 @@ async def get_scoreboard_markdown_table(
         ]).get_markdown()
         pprint(scoreboard)
 
-    return scoreboard
+    return len(players), scoreboard
 
 
 async def get_kills_markdown_table(
         conn: asyncpg.Connection,
         game_id: str,
         from_time: datetime.datetime,
-) -> str:
+) -> tuple[int, str]:
     candidate_kills = await queries.select_game_kills(
         conn=conn,
         game_id=game_id,
@@ -318,14 +324,14 @@ async def get_kills_markdown_table(
         ]).get_markdown()
         pprint(kills_table)
 
-    return kills_table
+    return len(candidate_kills), kills_table
 
 
 async def get_chat_messages_markdown_table(
         conn: asyncpg.Connection,
         game_id: str,
         from_time: datetime.datetime,
-) -> str:
+) -> tuple[int, str]:
     candidate_msgs = await queries.select_game_chat_messages(
         conn=conn,
         game_id=game_id,
@@ -342,7 +348,7 @@ async def get_chat_messages_markdown_table(
         ]).get_markdown()
         pprint(msgs_table)
 
-    return msgs_table
+    return len(candidate_msgs), msgs_table
 
 
 def sanitize_level_name(level: str) -> str:
@@ -410,9 +416,9 @@ async def post_game(
             task(conns[i], *args)
             for i, (task, args) in enumerate(tasks_args)
         )
-        scoreboard_table, kills_table, chat_msgs_table = await asyncio.gather(
-            *tasks
-        )
+        ((_, scoreboard_table),
+         (_, kills_table),
+         (_, chat_msgs_table)) = await asyncio.gather(*tasks)
 
     async with pool_acquire(pg_pool) as conn:
         async with conn.transaction():
@@ -565,15 +571,17 @@ async def post_game_message(
             task(conns[i], *args)
             for i, (task, args) in enumerate(tasks_args)
         )
-        scoreboard_table, kills_table, chat_msgs_table = await asyncio.gather(
-            *tasks
-        )
+        ((_, scoreboard_table),
+         (num_kills, kills_table),
+         (num_msgs, chat_msgs_table)) = await asyncio.gather(*tasks)
 
     # TODO: have some maximum upper limit for total prompt length?
     prompt = format_base_prompt_consecutive(
         markdown_scoreboard_table=scoreboard_table,
         markdown_kills_table=kills_table,
+        num_kills=num_kills,
         markdown_chat_msgs_table=chat_msgs_table,
+        num_msgs=num_msgs,
         instruction=prompt_in,  # TODO!
     )
 
