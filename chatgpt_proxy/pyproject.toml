@@ -35,6 +35,10 @@ build-backend = "hatchling.build"
 [tool.hatch.version]
 source = "uv-dynamic-versioning"
 
+# https://github.com/dependabot/dependabot-core/issues/12340
+[tool.hatch.version.raw-options]
+fallback_version = "0.0.0-unknown"
+
 [tool.hatch.build.hooks.version]
 path = "chatgpt_proxy/_version.py"
 
