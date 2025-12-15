@@ -27,9 +27,9 @@ import hashlib
 import ipaddress
 import os
 from functools import wraps
-from hmac import compare_digest
 from http import HTTPStatus
 from inspect import isawaitable
+from secrets import compare_digest
 from typing import Callable
 
 import asyncpg
