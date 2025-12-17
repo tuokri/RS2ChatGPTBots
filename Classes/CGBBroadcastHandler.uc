@@ -21,12 +21,13 @@
  */
 
 // Custom broadcast handler to capture all messages via our custom CGBProxy.
-class CGBBroadcastHandler extends ROBroadcastHandler;
+class CGBBroadcastHandler extends ROBroadcastHandler
+    DependsOn(CGBProxy);
 
 function bool AllowsBroadcast(Actor Broadcaster, int InLen)
 {
     // Always allow incoming messages from the LLM.
-    if (Broadcaster.IsA('CGBProxy'))
+    if (Broadcaster.IsA(NameOf(class'CGBProxy')))
     {
         return True;
     }
