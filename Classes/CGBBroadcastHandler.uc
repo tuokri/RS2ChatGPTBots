@@ -27,7 +27,7 @@ class CGBBroadcastHandler extends ROBroadcastHandler
 function bool AllowsBroadcast(Actor Broadcaster, int InLen)
 {
     // Always allow incoming messages from the LLM.
-    if (Broadcaster.IsA(NameOf(class'CGBProxy')))
+    if (Broadcaster.IsA('CGBProxy'))
     {
         return True;
     }
