@@ -33,10 +33,11 @@ from chatgpt_proxy.db import pool_acquire
 from chatgpt_proxy.db import queries
 from chatgpt_proxy.gen_api_key import async_main
 from chatgpt_proxy.tests import setup
+from chatgpt_proxy.tests.setup import default_test_db_timeout
 
 setup.common_test_setup()
 
-_db_timeout = 30.0
+_db_timeout = default_test_db_timeout
 
 
 @pytest_asyncio.fixture
