@@ -108,7 +108,7 @@ def make_api_v1_app(name: str = "ChatGPTProxy", **kwargs: Any) -> App:
     _app.config.JWT_AUDIENCE = auth.jwt_audience
 
     @_app.main_process_ready
-    async def main_process_ready(app_: App, _):
+    async def main_process_ready(app_: App):
         app_.manager.manage(
             name="DatabaseMaintenanceProcess",
             func=db_maintenance_process,
@@ -123,16 +123,16 @@ def make_api_v1_app(name: str = "ChatGPTProxy", **kwargs: Any) -> App:
         )
 
     @_app.main_process_start
-    async def main_process_start(app_: App, _):
+    async def main_process_start(app_: App):
         bg_process_event = mp.Event()
         app_.shared_ctx.bg_process_event = bg_process_event
 
     @_app.main_process_stop
-    async def main_process_stop(app_: App, _):
+    async def main_process_stop(app_: App):
         app_.shared_ctx.bg_process_event.set()
 
     @_app.before_server_start
-    async def before_server_start(app_: App, _):
+    async def before_server_start(app_: App):
         api_key = os.environ.get("OPENAI_API_KEY")
         client = openai.AsyncOpenAI(api_key=api_key)
         app_.ctx.client = client
@@ -148,7 +148,7 @@ def make_api_v1_app(name: str = "ChatGPTProxy", **kwargs: Any) -> App:
 
     # noinspection PyProtectedMember
     @_app.before_server_stop
-    async def before_server_stop(app_: App, _):
+    async def before_server_stop(app_: App):
         logger.debug("before_server_stop")
 
         # TODO: cleanup should have timeouts!
