@@ -23,9 +23,9 @@ dependencies = [
     "pyjwt>=2.10.1",
     "pypika>=0.50.0",
     "redis[hiredis]>=6.2.0",
-    "sanic[ext]>=25.3.0",
+    "sanic[ext]>=25.12.0",
     "ujson>=5.10.0",
-    "winloop>=0.2.1 ; platform_system == 'Windows'",
+    "winloop>=0.4.1 ; platform_system == 'Windows'",
 ]
 
 [build-system]
