@@ -25,7 +25,7 @@ CREATE EXTENSION IF NOT EXISTS "timescaledb";
 -- TODO: enforce only a single token per game_server_address:game_server_port is allowed!
 CREATE TABLE IF NOT EXISTS "game_server_api_key"
 (
-    created_at          TIMESTAMPTZ NOT NULL,
+    created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     expires_at          TIMESTAMPTZ NOT NULL,
     api_key_hash        BYTEA       NOT NULL,
     game_server_address INET        NOT NULL,
@@ -38,7 +38,7 @@ CREATE TABLE IF NOT EXISTS "game"
 (
     id                          TEXT PRIMARY KEY,
     level                       TEXT        NOT NULL,
-    start_time                  TIMESTAMPTZ NOT NULL,
+    start_time                  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     stop_time                   TIMESTAMPTZ,
     game_server_address         INET        NOT NULL,
     game_server_port            INTEGER     NOT NULL,
@@ -86,12 +86,13 @@ CREATE TABLE IF NOT EXISTS "game_kill"
 CREATE TABLE IF NOT EXISTS "game_player"
 (
     game_id TEXT    NOT NULL,
-    id      INTEGER NOT NULL UNIQUE,
+    id      INTEGER NOT NULL,
     name    TEXT    NOT NULL,
     team    INTEGER NOT NULL,
     score   INTEGER NOT NULL DEFAULT 0,
 
-    FOREIGN KEY (game_id) REFERENCES game (id) ON DELETE CASCADE
+    FOREIGN KEY (game_id) REFERENCES game (id) ON DELETE CASCADE,
+    UNIQUE (game_id, id)
 );
 
 CREATE TABLE IF NOT EXISTS "game_objective_state"
@@ -125,7 +126,7 @@ CREATE TABLE IF NOT EXISTS "openai_query"
     response_length     INTEGER     NOT NULL,
     openai_response_id  TEXT        NOT NULL,
 
-    FOREIGN KEY (game_id) REFERENCES game (id)
+    FOREIGN KEY (game_id) REFERENCES game (id) ON DELETE CASCADE
 );
 
 CREATE INDEX ON "openai_query" (game_id, time DESC);
