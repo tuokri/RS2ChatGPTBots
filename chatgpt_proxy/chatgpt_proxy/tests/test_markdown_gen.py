@@ -43,7 +43,7 @@ _db_timeout = default_test_db_timeout
 
 @pytest_asyncio.fixture
 async def markdown_gen_fixture() -> AsyncGenerator[asyncpg.Connection]:
-    pass
+    raise NotImplementedError
 
 
 @pytest_asyncio.fixture
