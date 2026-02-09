@@ -28,8 +28,8 @@ import ipaddress
 from asyncpg import Connection
 from asyncpg import Record
 from pypika import Order
-from pypika import Query
 from pypika import Table
+from pypika.queries import QueryBuilder
 
 from chatgpt_proxy.db import models
 
@@ -79,7 +79,7 @@ def build_update_game_query(
         game_id: str,
         stop_time: datetime.datetime | Ignored = IGNORED,
         openai_previous_response_id: str | Ignored = IGNORED,
-) -> Query:
+) -> QueryBuilder:
     game = Table(name="game")
     query = game.update()
     if stop_time is not IGNORED:
@@ -427,7 +427,7 @@ async def upsert_game_player(
         """
         INSERT INTO "game_player" (game_id, id, name, team, score)
         VALUES ($1, $2, $3, $4, $5)
-        ON CONFLICT (id) DO UPDATE
+        ON CONFLICT (game_id, id) DO UPDATE
             SET game_id = excluded.game_id,
                 name    = excluded.name,
                 team    = excluded.team,
