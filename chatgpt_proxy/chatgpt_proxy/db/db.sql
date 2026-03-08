@@ -25,13 +25,18 @@ CREATE EXTENSION IF NOT EXISTS "timescaledb";
 -- TODO: enforce only a single token per game_server_address:game_server_port is allowed!
 CREATE TABLE IF NOT EXISTS "game_server_api_key"
 (
+    id                  BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     expires_at          TIMESTAMPTZ NOT NULL,
     api_key_hash        BYTEA       NOT NULL,
     game_server_address INET        NOT NULL,
     game_server_port    INTEGER     NOT NULL,
-    name                TEXT
+    name                TEXT,
+    CHECK (game_server_port BETWEEN 1 AND 65535)
 );
+
+CREATE INDEX ON "game_server_api_key" (game_server_address, game_server_port);
+CREATE INDEX ON "game_server_api_key" (api_key_hash);
 
 -- Server game session. A new one begins on map change.
 CREATE TABLE IF NOT EXISTS "game"
@@ -132,8 +137,8 @@ CREATE TABLE IF NOT EXISTS "openai_query"
 CREATE INDEX ON "openai_query" (game_id, time DESC);
 CREATE INDEX ON "openai_query" (game_server_address, game_server_port, time DESC);
 
-SELECT create_hypertable('openai_query', 'time');
-SELECT add_retention_policy('openai_query', INTERVAL '1 months');
+SELECT create_hypertable('openai_query', 'time', if_not_exists => TRUE);
+SELECT add_retention_policy('openai_query', INTERVAL '1 months', if_not_exists => TRUE);
 
 ALTER TABLE "openai_query"
     SET (
@@ -141,4 +146,4 @@ ALTER TABLE "openai_query"
         timescaledb.compress_segmentby = 'game_server_address, game_server_port'
         );
 
-SELECT add_compression_policy('openai_query', INTERVAL '2 days');
+SELECT add_compression_policy('openai_query', INTERVAL '2 days', if_not_exists => TRUE);
