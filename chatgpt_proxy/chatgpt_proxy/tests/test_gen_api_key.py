@@ -82,7 +82,7 @@ async def test_gen_api_key_async_main(gen_api_key_fixture):
 
     token = await async_main(
         game_server_address=ipaddress.IPv4Address("69.69.69.1"),
-        game_server_port=69696,
+        game_server_port=60000,
         secret=setup.test_sanic_secret,
         issuer="test123",
         audience="test123",
@@ -95,7 +95,7 @@ async def test_gen_api_key_async_main(gen_api_key_fixture):
     key = await queries.select_game_server_api_key(
         conn=conn,
         game_server_address=ipaddress.IPv4Address("69.69.69.1"),
-        game_server_port=69696,
+        game_server_port=60000,
     )
     assert key
 
