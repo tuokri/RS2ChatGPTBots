@@ -40,7 +40,7 @@ class Ignored:
 
 IGNORED = Ignored()
 
-test_sanic_secret = "dummy"
+test_sanic_secret = "dummy123123-45678910111213141516"
 test_db = "chatgpt_proxy_tests"
 default_db_url = "postgresql://postgres:postgres@localhost:5432"
 db_url = default_db_url

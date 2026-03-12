@@ -413,7 +413,9 @@ async def post_game(
             count=len(tasks_args),
     ) as conns:
         tasks = (
-            task(conns[i], *args)
+            # TODO: fix this type error with Python 3.14 and
+            #   functools.Placeholder! Upgrade to 3.14!
+            task(conns[i], *args)  # type: ignore[operator]
             for i, (task, args) in enumerate(tasks_args)
         )
         ((_, scoreboard_table),
@@ -568,7 +570,9 @@ async def post_game_message(
             count=len(tasks_args),
     ) as conns:
         tasks = (
-            task(conns[i], *args)
+            # TODO: fix this type error with Python 3.14 and
+            #   functools.Placeholder! Upgrade to 3.14!
+            task(conns[i], *args)  # type: ignore[operator]
             for i, (task, args) in enumerate(tasks_args)
         )
         ((_, scoreboard_table),

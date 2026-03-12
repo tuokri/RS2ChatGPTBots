@@ -20,7 +20,11 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-"""Read-only models for chatgpt_proxy's 'adhoc ORM'."""
+"""Read-only models for chatgpt_proxy's 'adhoc ORM'.
+
+TODO: consider replacing these with asyncpg.Record
+  derived classes?
+"""
 
 import ast
 import datetime

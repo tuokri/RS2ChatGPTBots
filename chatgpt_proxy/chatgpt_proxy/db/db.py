@@ -39,9 +39,11 @@ async def pool_acquire(
         pool: Pool,
         timeout: float = _default_acquire_timeout,
 ) -> AsyncGenerator[Connection]:
-    conn: Connection
     async with pool.acquire(timeout=timeout) as conn:
-        yield conn
+        # TODO: what is the best way to handle type-juggling here?
+        # noinspection PyProtectedMember
+        _conn = conn._con  # type: ignore[attr-defined]
+        yield cast(Connection, _conn)
 
 
 @asynccontextmanager
@@ -53,9 +55,10 @@ async def pool_acquire_many(
     conns: list[Connection] = []
     try:
         for _ in range(count):
-            # noinspection PyUnresolvedReferences
-            conn = cast(Connection, await pool.acquire(timeout=timeout))
-            conns.append(conn)
+            conn_proxy = await pool.acquire(timeout=timeout)
+            # TODO: what is the best way to handle type-juggling here?
+            # noinspection PyProtectedMember
+            conns.append(conn_proxy._con)  # type: ignore[attr-defined]
         yield conns
     finally:
         for conn in conns:

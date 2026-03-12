@@ -596,4 +596,6 @@ async def select_steam_web_api_queries(
         """,
         timeout=timeout,
     )
+    if not record:
+        return 0
     return record["steam_web_api_queries"]
