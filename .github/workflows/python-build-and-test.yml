@@ -54,7 +54,7 @@ jobs:
             jq \
             sqlite3
 
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
 
       - name: Mark workspace as safe for git
         run: |
