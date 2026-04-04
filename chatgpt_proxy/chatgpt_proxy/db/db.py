@@ -22,6 +22,7 @@
 
 """Database connection and caching utilities."""
 
+import asyncio
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator
 from typing import cast
@@ -61,10 +62,10 @@ async def pool_acquire_many(
             conns.append(conn_proxy._con)  # type: ignore[attr-defined]
         yield conns
     finally:
-        for conn in conns:
-            try:
-                await conn.close(timeout=timeout)
-            except Exception as e:
-                logger.debug(
-                    "error closing connection: {}: {}",
-                    type(e).__name__, e)
+        try:
+            close_tasks = [conn.close(timeout=timeout) for conn in conns]
+            await asyncio.gather(*close_tasks, return_exceptions=True)
+        except Exception as e:
+            logger.debug(
+                "error closing connection: {}: {}",
+                type(e).__name__, e)
