@@ -2,6 +2,9 @@ name: Purge cached README images
 
 on: [ workflow_call ]
 
+permissions:
+  contents: read
+
 jobs:
   purge-readme-images:
     env:
