@@ -124,7 +124,7 @@ jobs:
           --cov-report xml:coverage.xml
 
       - name: Store test reports
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v7
         if: always()
         with:
           name: pytest-coverage-html-${{ env.MATRIX_CONTAINER }}-python-${{ matrix.python-version }}
@@ -141,14 +141,14 @@ jobs:
           --name='chatgpt__proxy coverage' 
 
       - name: Store generated badges
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v7
         with:
           name: badges-${{ env.MATRIX_CONTAINER }}-python-${{ matrix.python-version }}
           path: |
             chatgpt_proxy/coverage-badge.svg
 
       - name: Store built Python packages
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v7
         if: always()
         with:
           name: chatgpt_proxy-dist-${{ env.MATRIX_CONTAINER }}-python-${{ matrix.python-version }}
