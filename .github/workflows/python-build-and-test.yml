@@ -93,13 +93,13 @@ jobs:
           echo "MATRIX_CONTAINER=${MATRIX_CONTAINER/:/_}" >> $GITHUB_ENV
 
       - name: Store/restore mypy cache
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ./chatgpt_proxy/.mypy_cache
           key: mypy-cache-${{ env.MATRIX_CONTAINER }}-python-${{ matrix.python-version }}
 
       - name: Store/restore ruff cache
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ./chatgpt_proxy/.ruff_cache
           key: ruff-cache-${{ env.MATRIX_CONTAINER }}-python-${{ matrix.python-version }}
