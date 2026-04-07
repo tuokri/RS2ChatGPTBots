@@ -53,6 +53,7 @@ jobs:
             git \
             jq \
             sqlite3
+          rm -rf /var/lib/apt/lists/*
 
       - uses: actions/checkout@v5
 
@@ -159,5 +160,6 @@ jobs:
         run: uv cache prune --ci
 
   publish-gh-pages:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
     needs: [ build ]
     uses: ./.github/workflows/publish-gh-pages.yml
