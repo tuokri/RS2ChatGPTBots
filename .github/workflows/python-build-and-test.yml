@@ -80,7 +80,7 @@ jobs:
       - name: Install the project
         working-directory: ./chatgpt_proxy
         run: |
-          uv sync --all-extras --dev
+          uv sync --all-extras --dev --frozen
 
       - name: Build project
         working-directory: ./chatgpt_proxy
