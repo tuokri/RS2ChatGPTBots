@@ -154,6 +154,41 @@ jobs:
           path: |
             chatgpt_proxy/coverage-badge.svg
 
+      - name: Generate build metadata
+        working-directory: ./chatgpt_proxy/dist
+        shell: bash
+        run: |
+          mkdir -p .
+
+          {
+            echo "build_timestamp=$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+            echo "git_commit=${GITHUB_SHA}"
+            echo "git_ref=${GITHUB_REF}"
+            echo "git_ref_name=${GITHUB_REF_NAME}"
+            echo "git_head_ref=${GITHUB_HEAD_REF}"
+            echo "git_base_ref=${GITHUB_BASE_REF}"
+            echo "git_repository=${GITHUB_REPOSITORY}"
+            echo "git_event=${GITHUB_EVENT_NAME}"
+
+            echo "workflow=${GITHUB_WORKFLOW}"
+            echo "workflow_run_id=${GITHUB_RUN_ID}"
+            echo "workflow_run_number=${GITHUB_RUN_NUMBER}"
+            echo "workflow_attempt=${GITHUB_RUN_ATTEMPT}"
+
+            echo "actor=${GITHUB_ACTOR}"
+            echo "runner_os=${RUNNER_OS}"
+            echo "runner_arch=${RUNNER_ARCH}"
+
+            echo "matrix_container=${{ matrix.container }}"
+            echo "matrix_python=${{ matrix.python-version }}"
+
+            echo "repo_url=https://github.com/${GITHUB_REPOSITORY}"
+            echo "commit_url=https://github.com/${GITHUB_REPOSITORY}/commit/${GITHUB_SHA}"
+            echo "run_url=https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          } > build_metadata.txt
+
+          cat build_metadata.txt
+
       - name: Store built Python packages
         uses: actions/upload-artifact@v7
         if: always()
