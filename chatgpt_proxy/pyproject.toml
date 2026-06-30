@@ -57,7 +57,7 @@ dev = [
     "pytest-timeout>=2.4.0",
     "pytest>=9.0.3",
     "respx>=0.22.0",
-    "ruff>=0.15.5",
+    "ruff>=0.15.11",
     "sanic-testing>=24.6.0",
     "uv-dynamic-versioning>=0.13.0",
 ]
